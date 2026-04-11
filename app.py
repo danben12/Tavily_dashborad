@@ -148,6 +148,40 @@ def _is_paying_user_row(u: pd.DataFrame) -> pd.Series:
     return paygo | on_paid_plan
 
 
+# Research API go-live (UTC calendar date); align created_at / hour comparisons to UTC.
+RESEARCH_API_LAUNCH_UTC = pd.Timestamp("2025-11-23", tz="UTC")
+
+
+def _count_post_launch_first_research_users(users_unique: pd.DataFrame, hourly: pd.DataFrame) -> int:
+    """Users with created_at >= launch whose earliest hourly_usage row (by `hour`) is Research.
+
+    Matches notebook logic: sort by time, then ``groupby(user_id).first()``. If several rows share
+    the same earliest hour, the first row after sorting is used. Case-insensitive ``request_type``.
+    Post-launch users with no hourly rows are excluded (no first request in this extract).
+    """
+    if not {"user_id", "created_at"}.issubset(users_unique.columns):
+        return 0
+    if not {"user_id", "hour", "request_type"}.issubset(hourly.columns):
+        return 0
+    u = users_unique.dropna(subset=["user_id", "created_at"]).copy()
+    if u.empty:
+        return 0
+    u["user_id"] = u["user_id"].astype(int)
+    created = pd.to_datetime(u["created_at"], utc=True, errors="coerce")
+    post_ids = u.loc[created >= RESEARCH_API_LAUNCH_UTC, "user_id"].unique()
+    if len(post_ids) == 0:
+        return 0
+    h = hourly.dropna(subset=["hour", "user_id"]).copy()
+    h["user_id"] = h["user_id"].astype(int)
+    h = h[h["user_id"].isin(post_ids)]
+    if h.empty:
+        return 0
+    h = h.sort_values("hour")
+    first = h.groupby("user_id", sort=False).first()
+    rt = first["request_type"].fillna("").astype(str).str.lower().str.strip()
+    return int((rt == "research").sum())
+
+
 # -----------------------------------------------------------------------------
 # Overview — Executive Summary
 # -----------------------------------------------------------------------------
@@ -170,7 +204,18 @@ if page == "Overview":
         "*A high-level view of user monetization and platform traffic distribution.*"
     )
 
-    st.metric("Total Users", f"{total_users:,}")
+    research_first_users = _count_post_launch_first_research_users(df_users_unique, df_hourly)
+    st.metric(
+        "Total Users",
+        f"{total_users:,}",
+        delta=f"{research_first_users:,}",
+        delta_color="off",
+    )
+    st.caption(
+        f"**Delta:** users who signed up on or after **{RESEARCH_API_LAUNCH_UTC.date().isoformat()}** (Research API launch, UTC) "
+        "and whose **first** hourly usage row in this dataset (earliest timestamp; if several rows tie that hour, the first after sorting) "
+        "is a **Research** request. Post-launch signups with no hourly rows here are excluded."
+    )
 
     free_pct_users = (100.0 * free_users_count / total_users) if total_users else 0.0
 
