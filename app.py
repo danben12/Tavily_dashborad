@@ -171,6 +171,17 @@ if _agg:
 else:
     df_users_unique = _u.drop_duplicates(subset=["user_id"])
 
+# Mean total requests per calendar day (hourly_usage: sum request_count by day, then average days)
+avg_daily_request_count: float | None = None
+n_distinct_days_hourly = 0
+if "hour" in df_hourly.columns and "request_count" in df_hourly.columns:
+    _hu = df_hourly.dropna(subset=["hour"]).copy()
+    _hu["_day"] = _hu["hour"].dt.floor("D")
+    _daily_req = _hu.groupby("_day", as_index=False)["request_count"].sum()
+    n_distinct_days_hourly = int(len(_daily_req))
+    if n_distinct_days_hourly:
+        avg_daily_request_count = float(_daily_req["request_count"].mean())
+
 # -----------------------------------------------------------------------------
 # Overview
 # -----------------------------------------------------------------------------
@@ -255,10 +266,21 @@ if page == "Overview":
             int(df_hourly["request_count"].sum()) if "request_count" in df_hourly.columns else len(df_hourly)
         )
         n_research_req = len(df_research)
-        e1, e2, e3 = st.columns(3)
+        e1, e2, e3, e4 = st.columns(4)
         e1.metric("Infra + model spend (period)", f"${total_infra_usd:,.0f}")
         e2.metric("Request events (hourly log)", f"{total_hourly_requests:,}")
         e3.metric("Research API requests", f"{n_research_req:,}")
+        if avg_daily_request_count is not None:
+            e4.metric(
+                "Avg daily requests (hourly_usage)",
+                f"{avg_daily_request_count:,.0f}",
+                help=f"Mean of total `request_count` per UTC calendar day across {n_distinct_days_hourly:,} days with data.",
+            )
+        else:
+            e4.metric("Avg daily requests (hourly_usage)", "—", help="Need `hour` and `request_count` columns.")
+        st.caption(
+            "**Avg daily requests:** for each UTC date, sum `request_count` over all rows in `hourly_usage.csv`, then average those daily totals."
+        )
         st.subheader("Total cost per hour (all components)")
         hourly_total = df_costs_long.groupby("hour", as_index=False)["usd"].sum()
         hourly_total = hourly_total.sort_values("hour")
