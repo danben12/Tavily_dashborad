@@ -171,11 +171,6 @@ if page == "Overview":
     else:
         total_credits_platform = 0
 
-    if "plan" in df_users_unique.columns:
-        plan_dist = df_users_unique["plan"].fillna("(unknown)").astype(str).value_counts()
-    else:
-        plan_dist = pd.Series(dtype=int)
-
     if "request_type" in df_hourly.columns and "request_count" in df_hourly.columns:
         endpoint_dist = df_hourly.groupby(df_hourly["request_type"].fillna("(unknown)").astype(str))["request_count"].sum()
     else:
@@ -275,14 +270,6 @@ if page == "Overview":
         f"warrants careful unit economics — see **Product Analysis**."
     )
 
-    if not plan_dist.empty:
-        with st.expander("User count by plan (detail)", expanded=False):
-            st.dataframe(
-                plan_dist.rename_axis("plan").reset_index(name="users"),
-                use_container_width=True,
-                hide_index=True,
-            )
-
     ts_left, ts_right = st.columns(2)
 
     with ts_left:
@@ -298,13 +285,13 @@ if page == "Overview":
                 .sort_values("day")
                 .reset_index(drop=True)
             )
-            _daily["requests_ma7"] = _daily["request_count"].rolling(window=7).mean()
-            _smooth = _daily.dropna(subset=["requests_ma7"])
-            if _smooth.empty:
+            # min_periods=1: early dates use 1..6 days of history; from day 7 onward uses full 7-day window
+            _daily["requests_ma7"] = _daily["request_count"].rolling(window=7, min_periods=1).mean()
+            if _daily.empty:
                 st.info("Not enough data for a 7-day moving average.")
             else:
                 fig_ma = px.line(
-                    _smooth,
+                    _daily,
                     x="day",
                     y="requests_ma7",
                     title=None,
@@ -320,6 +307,10 @@ if page == "Overview":
                     plot_bgcolor="rgba(0,0,0,0)",
                 )
                 st.plotly_chart(fig_ma, use_container_width=True)
+                st.caption(
+                    "Moving average uses `rolling(window=7, min_periods=1)`: the first days average over "
+                    "however many daily points exist up to seven."
+                )
 
     with ts_right:
         st.markdown("### Cumulative User Growth")
