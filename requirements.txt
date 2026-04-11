@@ -2,3 +2,4 @@ streamlit
 pandas
 numpy
 bokeh
+altair>=5.0
