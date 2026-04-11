@@ -177,18 +177,7 @@ if page == "Overview":
 
     paying_pct = (100.0 * paying_users_count / total_users) if total_users else 0.0
 
-    if "hour" in df_hourly.columns:
-        h = pd.to_datetime(df_hourly["hour"], utc=True, errors="coerce").dropna()
-        if not h.empty:
-            ds_start, ds_end = h.min(), h.max()
-            range_label = f"{ds_start.strftime('%Y-%m-%d')} → {ds_end.strftime('%Y-%m-%d')} (UTC)"
-        else:
-            range_label = "not available (no valid hour timestamps)"
-    else:
-        range_label = "not available (no hour column)"
-
     st.metric("Total Users", f"{total_users:,}")
-    st.caption(f"Dataset span (hourly usage): {range_label}")
 
     free_pct_users = (100.0 * free_users_count / total_users) if total_users else 0.0
 

@@ -1,0 +1,16 @@
+---
+description: Commit and push after completing work in this repo
+alwaysApply: true
+---
+
+# Git workflow (Tavily_dashborad)
+
+At the **end of each iteration** (when a coherent change is done), **commit and push** to `origin`:
+
+1. `git add` the files you changed (avoid unrelated files).
+2. `git commit -m "..."` with a short, accurate message.
+3. `git push`.
+
+If `git` is not on PATH (Windows), use the full path to Git, e.g. `C:\Program Files\Git\bin\git.exe`, with `-C` set to this repo root.
+
+Do not leave finished work uncommitted unless the user explicitly wants a WIP kept local.
