@@ -238,6 +238,40 @@ if page == "Overview":
             "*PAYGO on (% of plan)* = PAYGO users on that plan ÷ users on that plan."
         )
 
+    with st.expander("Reference: Tavily list pricing (public website)", expanded=False):
+        st.markdown(
+            "Snapshot from [tavily.com/pricing](https://www.tavily.com/pricing) for context next to the **plan** "
+            "labels in your sample (e.g. `researcher`). **Project** pricing is set with a **slider on that page**, "
+            "so no single dollar amount is shown here."
+        )
+        pricing_df = pd.DataFrame(
+            {
+                "Product tier": [
+                    "Researcher",
+                    "Pay as you go",
+                    "Project",
+                    "Enterprise",
+                ],
+                "List price": [
+                    "Free (per month)",
+                    "$0.008 / credit",
+                    "Paid monthly (tier chosen on pricing page)",
+                    "Custom",
+                ],
+                "Usage highlights": [
+                    "1,000 API credits / month · no credit card · email support",
+                    "Pay only for what you use · cancel anytime · email support",
+                    "4,000+ API credits / month · higher rate limits · email support",
+                    "Custom calls & limits · enterprise support & SLAs · security & privacy",
+                ],
+            }
+        )
+        st.dataframe(pricing_df, use_container_width=True, hide_index=True)
+        st.caption(
+            "Tavily also notes **free access for students** on the same page. "
+            "Credits and features can change — confirm on the live pricing page before quoting externally."
+        )
+
 # -----------------------------------------------------------------------------
 # Product Analysis (users + research_requests + hourly_usage)
 # -----------------------------------------------------------------------------
