@@ -8,6 +8,7 @@ import zipfile
 from pathlib import Path
 
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -281,6 +282,80 @@ if page == "Overview":
                 use_container_width=True,
                 hide_index=True,
             )
+
+    ts_left, ts_right = st.columns(2)
+
+    with ts_left:
+        st.markdown("### Platform Traffic (7-Day Moving Average)")
+        if "hour" not in df_hourly.columns or "request_count" not in df_hourly.columns:
+            st.info("Missing `hour` or `request_count` in hourly usage data.")
+        else:
+            _hu = df_hourly.dropna(subset=["hour"]).copy()
+            _hu["day"] = pd.to_datetime(_hu["hour"], utc=True).dt.normalize()
+            _daily = (
+                _hu.groupby("day", as_index=False)["request_count"]
+                .sum()
+                .sort_values("day")
+                .reset_index(drop=True)
+            )
+            _daily["requests_ma7"] = _daily["request_count"].rolling(window=7).mean()
+            _smooth = _daily.dropna(subset=["requests_ma7"])
+            if _smooth.empty:
+                st.info("Not enough data for a 7-day moving average.")
+            else:
+                fig_ma = px.line(
+                    _smooth,
+                    x="day",
+                    y="requests_ma7",
+                    title=None,
+                )
+                fig_ma.update_traces(line=dict(color="#2563eb", width=2))
+                fig_ma.update_layout(
+                    showlegend=False,
+                    xaxis_title="Date (UTC)",
+                    yaxis_title="Requests (7d MA)",
+                    height=380,
+                    margin=dict(t=20, b=48, l=48, r=24),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                )
+                st.plotly_chart(fig_ma, use_container_width=True)
+
+    with ts_right:
+        st.markdown("### Cumulative User Growth")
+        if "created_at" not in df_users_unique.columns:
+            st.info("Missing `created_at` in users data.")
+        else:
+            _uu = df_users_unique.dropna(subset=["created_at"]).copy()
+            _uu["day"] = pd.to_datetime(_uu["created_at"], utc=True, errors="coerce").dt.normalize()
+            _uu = _uu.dropna(subset=["day"])
+            if _uu.empty:
+                st.info("No valid signup dates for cumulative growth.")
+            else:
+                _growth = (
+                    _uu.groupby("day").size().reset_index(name="new_users").sort_values("day").reset_index(drop=True)
+                )
+                _growth["cumulative_users"] = _growth["new_users"].cumsum()
+                fig_cum = px.area(
+                    _growth,
+                    x="day",
+                    y="cumulative_users",
+                    title=None,
+                )
+                fig_cum.update_traces(
+                    line=dict(color="#059669", width=1),
+                    fillcolor="rgba(5, 150, 105, 0.25)",
+                )
+                fig_cum.update_layout(
+                    showlegend=False,
+                    xaxis_title="Date (UTC)",
+                    yaxis_title="Cumulative users",
+                    height=380,
+                    margin=dict(t=20, b=48, l=48, r=24),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                )
+                st.plotly_chart(fig_cum, use_container_width=True)
 
 # -----------------------------------------------------------------------------
 # Product Analysis
