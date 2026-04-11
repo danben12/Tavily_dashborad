@@ -56,10 +56,8 @@ df_hourly, df_costs, df_research, df_users = load_data()
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", [
     "Overview", 
-    "Hourly Usage Analytics", 
-    "Infrastructure Costs", 
-    "Research Requests",
-    "User Metrics"
+    "Product Analysis", 
+    "Infrastructure & Cost Analysis", 
 ])
 
 st.sidebar.markdown("---")
