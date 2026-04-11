@@ -31,10 +31,24 @@ def load_data():
     try:
         # Open the single zip file
         with zipfile.ZipFile('data.zip', 'r') as z:
+            # Dataset 1: Hourly Usage Data
             df_hourly = pd.read_csv(z.open('hourly_usage.csv'))
+            if 'hour' in df_hourly.columns:
+                df_hourly['hour'] = pd.to_datetime(df_hourly['hour'])
+            
+            # Dataset 2: Infrastructure Costs Data
             df_costs = pd.read_csv(z.open('infrastructure_costs.csv'))
+            if 'hour' in df_costs.columns:
+                df_costs['hour'] = pd.to_datetime(df_costs['hour'])
+            
+            # Dataset 3: Research Requests Data
             df_research = pd.read_csv(z.open('research_requests.csv'))
+            if 'timestamp' in df_research.columns:
+                df_research['timestamp'] = pd.to_datetime(df_research['timestamp'])
+
+            # Dataset 4: Users Data
             df_users = pd.read_csv(z.open('users.csv'))
+            
         return df_hourly, df_costs, df_research, df_users
         
     except FileNotFoundError:
@@ -56,10 +70,8 @@ df_hourly, df_costs, df_research, df_users = load_data()
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", [
     "Overview", 
-    "Hourly Usage Analytics", 
-    "Infrastructure Costs", 
-    "Research Requests",
-    "User Metrics"
+    "Part 1: Product Analysis", 
+    "Part 2: Infrastructure & Cost"
 ])
 
 st.sidebar.markdown("---")
@@ -78,13 +90,13 @@ if page == "Overview":
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        # Assuming 'Cost' column exists
-        total_cost = df_costs['Cost'].sum() if 'Cost' in df_costs.columns else 0
+        # Summing all cost columns if they exist based on the PDF schema
+        cost_cols = [c for c in df_costs.columns if c.startswith('infra_') or c.startswith('model_')]
+        total_cost = df_costs[cost_cols].sum().sum() if cost_cols else 0
         st.metric(label="Total Infrastructure Cost", value=f"${total_cost:,.2f}")
         
     with col2:
-        # Assuming 'API_Calls' column exists
-        total_calls = df_hourly['API_Calls'].sum() if 'API_Calls' in df_hourly.columns else len(df_hourly)
+        total_calls = df_hourly['request_count'].sum() if 'request_count' in df_hourly.columns else len(df_hourly)
         st.metric(label="Total API Calls", value=f"{total_calls:,}")
         
     with col3:
@@ -96,91 +108,94 @@ if page == "Overview":
         st.metric(label="Total Research Requests", value=f"{total_requests:,}")
 
     st.markdown("---")
+    st.info("👈 Select **Part 1** or **Part 2** from the sidebar to dive into the assignment requirements.")
+
+elif page == "Part 1: Product Analysis":
+    st.title("📦 Part 1: Product Analysis")
+    st.write("Analysis of the Research API health, growth, and future direction.")
     
-    # --- Figures ---
-    st.subheader("Infrastructure Cost Over Time")
-    if 'Date' in df_costs.columns and 'Cost' in df_costs.columns:
-        costs_daily = df_costs.groupby('Date')['Cost'].sum().reset_index()
-        p_overview = figure(title="Daily Infrastructure Cost", x_axis_type='datetime', height=400)
-        p_overview.line(costs_daily['Date'], costs_daily['Cost'], line_width=2, color="navy")
-        p_overview.varea(x=costs_daily['Date'], y1=0, y2=costs_daily['Cost'], color="lightblue", alpha=0.5)
+    st.markdown("### 🎯 Critical Business Questions")
+    st.markdown("""
+    1. **[Question 1 Placeholder]** - Justification...
+    2. **[Question 2 Placeholder]** - Justification...
+    3. **[Question 3 Placeholder]** - Justification...
+    """)
+    
+    st.markdown("---")
+    
+    # Using tabs to organize the different datasets for Part 1 cleanly
+    tab1, tab2, tab3 = st.tabs(["Research Requests", "Hourly Usage", "User Metrics"])
+    
+    with tab1:
+        st.subheader("Research Requests Analysis")
+        if 'status' in df_research.columns:
+            status_counts = df_research['status'].value_counts().reset_index()
+            status_counts.columns = ['Status', 'Count']
+            statuses = status_counts['Status'].tolist()
+            
+            p_research = figure(x_range=statuses, title="Request Outcomes", height=400)
+            p_research.vbar(x='Status', top='Count', width=0.5, source=ColumnDataSource(status_counts), color="purple", alpha=0.7)
+            st.bokeh_chart(p_research, use_container_width=True)
+        else:
+            st.warning("Missing 'status' column in research_requests.csv")
+
+    with tab2:
+        st.subheader("Hourly Usage Patterns")
+        if 'hour' in df_hourly.columns and 'request_count' in df_hourly.columns:
+            df_hourly['Date_Only'] = df_hourly['hour'].dt.date
+            daily_usage = df_hourly.groupby('Date_Only')['request_count'].sum().reset_index()
+            daily_usage['Date_Only'] = pd.to_datetime(daily_usage['Date_Only'])
+
+            p_usage = figure(title="Daily Request Volume", x_axis_type='datetime', height=400)
+            p_usage.vbar(x='Date_Only', top='request_count', width=86400000 * 0.8, source=ColumnDataSource(daily_usage), color="green", alpha=0.7)
+            st.bokeh_chart(p_usage, use_container_width=True)
+        else:
+            st.warning("Missing 'hour' or 'request_count' in hourly_usage.csv")
+
+    with tab3:
+        st.subheader("User Plan Distribution")
+        if 'plan' in df_users.columns:
+            plan_counts = df_users['plan'].value_counts().reset_index()
+            plan_counts.columns = ['Plan', 'Users']
+            plans = plan_counts['Plan'].astype(str).tolist()
+
+            p_users = figure(x_range=plans, title="Users by Subscription Plan", height=400)
+            p_users.vbar(x='Plan', top='Users', width=0.5, source=ColumnDataSource(plan_counts), color="orange", alpha=0.8)
+            st.bokeh_chart(p_users, use_container_width=True)
+        else:
+            st.warning("Missing 'plan' column in users.csv")
+
+elif page == "Part 2: Infrastructure & Cost":
+    st.title("💸 Part 2: Infrastructure & Cost Analysis")
+    st.write("Understanding how infrastructure costs behave and what drives them.")
+    
+    st.markdown("### 🔑 Key Cost Drivers Analysis")
+    st.markdown("**Hypothesis:** [Write your cost hypothesis here]")
+    
+    # Calculate costs based on the specific columns from the PDF
+    cost_cols = [c for c in df_costs.columns if c.startswith('infra_') or c.startswith('model_')]
+    
+    if cost_cols and 'hour' in df_costs.columns:
+        # 1. Total Cost Over Time
+        df_costs['Total_Cost'] = df_costs[cost_cols].sum(axis=1)
+        costs_daily = df_costs.groupby(df_costs['hour'].dt.date)['Total_Cost'].sum().reset_index()
+        costs_daily['hour'] = pd.to_datetime(costs_daily['hour'])
+        
+        p_overview = figure(title="Daily Total Infrastructure Cost", x_axis_type='datetime', height=400)
+        p_overview.line(costs_daily['hour'], costs_daily['Total_Cost'], line_width=2, color="navy")
+        p_overview.varea(x=costs_daily['hour'], y1=0, y2=costs_daily['Total_Cost'], color="lightblue", alpha=0.5)
         st.bokeh_chart(p_overview, use_container_width=True)
-    else:
-        st.warning("Cost or Date columns not found. Please adjust column names in the script.")
-
-
-elif page == "Hourly Usage Analytics":
-    st.title("📈 Hourly Usage Analytics")
-    st.write("Detailed breakdown of API usage over time.")
-    
-    if 'Timestamp' in df_hourly.columns and 'API_Calls' in df_hourly.columns:
-        # Aggregate by day for a clearer overall chart, or keep hourly if preferred
-        df_hourly['Date_Only'] = df_hourly['Timestamp'].dt.date
-        daily_usage = df_hourly.groupby('Date_Only')['API_Calls'].sum().reset_index()
-        daily_usage['Date_Only'] = pd.to_datetime(daily_usage['Date_Only'])
-
-        p_usage = figure(title="Daily API Calls Volume", x_axis_type='datetime', height=400)
-        p_usage.vbar(x='Date_Only', top='API_Calls', width=86400000 * 0.8, source=ColumnDataSource(daily_usage), color="green", alpha=0.7)
-        st.bokeh_chart(p_usage, use_container_width=True)
         
-        with st.expander("View Raw Hourly Data"):
-            st.dataframe(df_hourly.head(100))
-    else:
-        st.warning("Missing required columns ('Timestamp' or 'API_Calls') in hourly_usage.csv")
-
-
-elif page == "Infrastructure Costs":
-    st.title("💸 Infrastructure Costs")
-    st.write("Breakdown of costs by service and time.")
-    
-    if 'Service' in df_costs.columns and 'Cost' in df_costs.columns:
-        service_costs = df_costs.groupby('Service')['Cost'].sum().reset_index()
-        services = service_costs['Service'].tolist()
+        # 2. Cost Breakdown by Category
+        st.subheader("Cost Breakdown by Component")
+        sum_costs = df_costs[cost_cols].sum().reset_index()
+        sum_costs.columns = ['Component', 'Cost']
+        sum_costs = sum_costs.sort_values('Cost', ascending=False).head(10) # Top 10 costs
         
-        p_costs = figure(x_range=services, title="Total Cost by Service", height=400, toolbar_location=None)
-        cmap = factor_cmap('Service', palette=bp.Category10[max(3, len(services))], factors=services)
-        p_costs.vbar(x='Service', top='Cost', width=0.8, source=ColumnDataSource(service_costs), color=cmap, alpha=0.8)
-        p_costs.xgrid.grid_line_color = None
-        st.bokeh_chart(p_costs, use_container_width=True)
-    else:
-        st.warning("Missing required columns ('Service' or 'Cost') in infrastructure_costs.csv")
-
-
-elif page == "Research Requests":
-    st.title("🔎 Research Requests")
-    st.write("Analysis of research request topics and processing times.")
-    
-    if 'Topic' in df_research.columns:
-        topic_counts = df_research['Topic'].value_counts().reset_index()
-        topic_counts.columns = ['Topic', 'Count']
-        topics = topic_counts['Topic'].tolist()
+        components = sum_costs['Component'].tolist()
+        p_breakdown = figure(y_range=components[::-1], title="Top 10 Cost Drivers", height=400)
+        p_breakdown.hbar(y='Component', right='Cost', height=0.6, source=ColumnDataSource(sum_costs), color="red", alpha=0.6)
+        st.bokeh_chart(p_breakdown, use_container_width=True)
         
-        p_research = figure(y_range=topics[::-1], title="Volume of Requests by Topic", height=400)
-        p_research.hbar(y='Topic', right='Count', height=0.8, source=ColumnDataSource(topic_counts), color="purple", alpha=0.6)
-        st.bokeh_chart(p_research, use_container_width=True)
-        
-        if 'Processing_Time_sec' in df_research.columns:
-            avg_time = df_research['Processing_Time_sec'].mean()
-            st.metric("Average Processing Time", f"{avg_time:.2f} seconds")
     else:
-        st.warning("Missing 'Topic' column in research_requests.csv")
-
-
-elif page == "User Metrics":
-    st.title("👥 User Metrics")
-    st.write("Overview of user base and subscription tiers.")
-    
-    if 'Subscription_Tier' in df_users.columns:
-        tier_counts = df_users['Subscription_Tier'].value_counts().reset_index()
-        tier_counts.columns = ['Tier', 'Users']
-        tiers = tier_counts['Tier'].astype(str).tolist()
-        tier_counts['Tier'] = tier_counts['Tier'].astype(str)
-
-        p_users = figure(x_range=tiers, title="Users by Subscription Tier", height=400)
-        p_users.vbar(x='Tier', top='Users', width=0.5, source=ColumnDataSource(tier_counts), color="orange", alpha=0.8)
-        st.bokeh_chart(p_users, use_container_width=True)
-    else:
-        st.warning("Missing 'Subscription_Tier' column in users.csv")
-
-    with st.expander("View User Directory"):
-        st.dataframe(df_users.head(100))
+        st.warning("Cost components (infra_ / model_) or 'hour' column not found in infrastructure_costs.csv")
