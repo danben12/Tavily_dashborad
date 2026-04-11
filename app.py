@@ -201,6 +201,45 @@ if page == "Overview":
             "**% with PAYGO (within plan)** — among users on that plan only, share with PAYGO enabled."
         )
 
+        if "has_paygo" in u.columns:
+            plans_ordered = seg["plan"].tolist()
+            cnt = u.groupby(["plan", "has_paygo"])["user_id"].count().unstack(fill_value=0)
+            cnt = cnt.reindex(plans_ordered).fillna(0).astype(int)
+            paygo_off = cnt[False] if False in cnt.columns else pd.Series(0, index=plans_ordered)
+            paygo_on = cnt[True] if True in cnt.columns else pd.Series(0, index=plans_ordered)
+            paygo_off = paygo_off.reindex(plans_ordered).fillna(0).astype(int)
+            paygo_on = paygo_on.reindex(plans_ordered).fillna(0).astype(int)
+
+            src = ColumnDataSource(
+                data={
+                    "plan": plans_ordered,
+                    "non_paygo": paygo_off.values,
+                    "paygo": paygo_on.values,
+                }
+            )
+            p_plan = figure(
+                x_range=plans_ordered,
+                height=420,
+                sizing_mode="stretch_width",
+                title="Users by plan — stacked: non-PAYGO vs PAYGO",
+                toolbar_location="above",
+            )
+            # Bottom segment first: non-PAYGO (muted), top: PAYGO (accent)
+            p_plan.vbar_stack(
+                ("non_paygo", "paygo"),
+                x="plan",
+                width=0.65,
+                color=("#94a3b8", "#1d4ed8"),
+                source=src,
+                legend_label=("Non-PAYGO", "PAYGO on"),
+            )
+            p_plan.xgrid.grid_line_color = None
+            p_plan.yaxis.axis_label = "Users"
+            p_plan.legend.location = "top_right"
+            p_plan.legend.click_policy = "hide"
+            p_plan.xaxis.major_label_orientation = 0.7
+            st.bokeh_chart(p_plan, use_container_width=True)
+
 # -----------------------------------------------------------------------------
 # Product Analysis (users + research_requests + hourly_usage)
 # -----------------------------------------------------------------------------
