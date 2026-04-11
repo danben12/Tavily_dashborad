@@ -8,13 +8,14 @@ import zipfile
 from pathlib import Path
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 # -----------------------------------------------------------------------------
 # Page
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Tavily Research — Analytics",
+    page_title="Tavily Analytics Dashboard",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -136,13 +137,150 @@ page = st.sidebar.radio(
 st.sidebar.markdown("---")
 st.sidebar.caption("Tavily Data Analyst home assignment — Dan Benbenisti")
 
+def _fmt_millions(n: float) -> str:
+    return f"{n / 1e6:.2f}M"
+
+
+def _is_paying_user_row(u: pd.DataFrame) -> pd.Series:
+    """Paying = Pay-as-you-go and/or non-freemium plan. Adjust FREEMIUM_PLANS as needed."""
+    pl = u["plan"].fillna("").astype(str).str.lower().str.strip() if "plan" in u.columns else pd.Series("", index=u.index)
+    freemium = pl.eq("researcher") | pl.eq("(unknown)") | pl.eq("unknown")
+    paygo = u["has_paygo"].astype(bool) if "has_paygo" in u.columns else pd.Series(False, index=u.index)
+    on_paid_plan = ~freemium & pl.ne("")
+    return paygo | on_paid_plan
+
+
 # -----------------------------------------------------------------------------
-# Overview
+# Overview — Executive Summary
 # -----------------------------------------------------------------------------
 if page == "Overview":
-    st.title("Overview")
-    n_users = int(df_users_unique["user_id"].nunique())
-    st.metric("Total users (unique `user_id`)", f"{n_users:,}")
+    # --- Swap these blocks for dummy data vs. live data ---------------------------------
+    total_users = int(df_users_unique["user_id"].nunique())
+    paying_mask = _is_paying_user_row(df_users_unique)
+    paying_users_count = int(paying_mask.sum())
+    free_users_count = int(total_users - paying_users_count)
+
+    if "request_count" in df_hourly.columns:
+        total_requests_platform = int(df_hourly["request_count"].sum())
+    else:
+        total_requests_platform = len(df_hourly)
+
+    if "total_credits_used" in df_hourly.columns:
+        total_credits_platform = int(df_hourly["total_credits_used"].sum())
+    else:
+        total_credits_platform = 0
+
+    if "plan" in df_users_unique.columns:
+        plan_dist = df_users_unique["plan"].fillna("(unknown)").astype(str).value_counts()
+    else:
+        plan_dist = pd.Series(dtype=int)
+
+    if "request_type" in df_hourly.columns and "request_count" in df_hourly.columns:
+        endpoint_dist = df_hourly.groupby(df_hourly["request_type"].fillna("(unknown)").astype(str))["request_count"].sum()
+    else:
+        endpoint_dist = pd.Series(dtype=float)
+
+    # -------------------------------------------------------------------------------------
+
+    st.title("Platform Overview: Executive Summary")
+    st.markdown(
+        "*A high-level view of user monetization and platform traffic distribution.*"
+    )
+
+    paying_pct = (100.0 * paying_users_count / total_users) if total_users else 0.0
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Total Users", f"{total_users:,}")
+    m2.metric("Total Requests", _fmt_millions(float(total_requests_platform)))
+    m3.metric("Total Credits Consumed", _fmt_millions(float(total_credits_platform)))
+    m4.metric("Paying Users (%)", f"{paying_pct:.1f}%")
+
+    free_pct_users = (100.0 * free_users_count / total_users) if total_users else 0.0
+
+    col_left, col_right = st.columns(2)
+
+    with col_left:
+        st.markdown(
+            f"### Freemium heavy: **{free_pct_users:.0f}%** of user base is non-monetized"
+        )
+        donut_df = pd.DataFrame(
+            {
+                "segment": ["Free users", "Paying users"],
+                "users": [free_users_count, paying_users_count],
+            }
+        )
+        fig_donut = go.Figure(
+            data=[
+                go.Pie(
+                    labels=donut_df["segment"],
+                    values=donut_df["users"],
+                    hole=0.52,
+                    marker=dict(colors=["#cbd5e1", "#2563eb"]),
+                    textinfo="label+percent",
+                    textposition="outside",
+                    hovertemplate="<b>%{label}</b><br>Users: %{value:,}<br>Share: %{percent}<extra></extra>",
+                )
+            ]
+        )
+        fig_donut.update_layout(
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
+            margin=dict(t=30, b=80, l=40, r=40),
+            height=420,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(fig_donut, use_container_width=True)
+
+    with col_right:
+        st.markdown("### Query is king, Research is a niche")
+        if endpoint_dist.empty:
+            st.info("No endpoint / request data available for chart.")
+        else:
+            s = endpoint_dist.sort_values(ascending=True)
+            bar_df = s.reset_index()
+            bar_df.columns = ["endpoint", "requests"]
+            colors = [
+                "#ea580c" if str(e).lower() == "research" else "#64748b"
+                for e in bar_df["endpoint"]
+            ]
+            fig_bar = go.Figure(
+                go.Bar(
+                    x=bar_df["requests"],
+                    y=bar_df["endpoint"],
+                    orientation="h",
+                    marker_color=colors,
+                    hovertemplate="<b>%{y}</b><br>Requests: %{x:,}<extra></extra>",
+                )
+            )
+            fig_bar.update_layout(
+                xaxis_title="Requests (sum of hourly counts)",
+                yaxis_title=None,
+                height=max(360, 40 + 32 * len(bar_df)),
+                margin=dict(t=30, b=40, l=40, r=24),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                showlegend=False,
+            )
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+    research_req = float(endpoint_dist.get("research", 0)) if not endpoint_dist.empty else 0.0
+    research_share = (100.0 * research_req / total_requests_platform) if total_requests_platform else 0.0
+
+    st.info(
+        f"**Strategic insight:** While the platform handles large volume (mostly **query**), monetization "
+        f"relies on about **{paying_pct:.1f}%** paying users. The **research** endpoint is only "
+        f"**~{research_share:.2f}%** of total traffic in this sample, yet its high resource use "
+        f"warrants careful unit economics — see **Product Analysis**."
+    )
+
+    if not plan_dist.empty:
+        with st.expander("User count by plan (detail)", expanded=False):
+            st.dataframe(
+                plan_dist.rename_axis("plan").reset_index(name="users"),
+                use_container_width=True,
+                hide_index=True,
+            )
 
 # -----------------------------------------------------------------------------
 # Product Analysis
