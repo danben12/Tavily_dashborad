@@ -155,6 +155,22 @@ research_users = set(df_research["user_id"].dropna().astype(int))
 status_series = df_research["status"].fillna("").astype(str).str.strip()
 status_series = status_series.replace("", "(empty)")
 
+# One row per user_id: user counts and segmentation use unique IDs, not raw row count
+_u = df_users.dropna(subset=["user_id"]).copy()
+_u["user_id"] = _u["user_id"].astype(int)
+_agg: dict = {}
+for _col in ("plan", "plan_limit"):
+    if _col in _u.columns:
+        _agg[_col] = "first"
+if "has_paygo" in _u.columns:
+    _agg["has_paygo"] = "max"  # True if any duplicate row had PAYGO on
+if "created_at" in _u.columns:
+    _agg["created_at"] = "min"  # earliest = signup
+if _agg:
+    df_users_unique = _u.groupby("user_id", as_index=False).agg(_agg)
+else:
+    df_users_unique = _u.drop_duplicates(subset=["user_id"])
+
 # -----------------------------------------------------------------------------
 # Overview
 # -----------------------------------------------------------------------------
@@ -162,16 +178,16 @@ if page == "Overview":
     st.title("Overview")
     st.caption("High-level view of the sampled user base: scale, plans, and monetization levers.")
 
-    user_ids_in_table = set(df_users["user_id"].dropna().astype(int))
-    n_users = len(df_users)
-    paygo_users = int(df_users["has_paygo"].sum()) if "has_paygo" in df_users.columns else 0
+    user_ids_in_table = set(df_users_unique["user_id"])
+    n_users = int(df_users_unique["user_id"].nunique())
+    paygo_users = int(df_users_unique["has_paygo"].sum()) if "has_paygo" in df_users_unique.columns else 0
     paygo_pct = (100.0 * paygo_users / n_users) if n_users else 0.0
     research_distinct = len(research_users)
     research_in_sample = len(research_users & user_ids_in_table)
     research_pct = (100.0 * research_in_sample / n_users) if n_users else 0.0
 
     m1, m2, m3 = st.columns(3)
-    m1.metric("Users in sample", f"{n_users:,}")
+    m1.metric("Users in sample (unique user_id)", f"{n_users:,}")
     m2.metric(
         "Pay-as-you-go enabled",
         f"{paygo_users:,}",
@@ -184,8 +200,8 @@ if page == "Overview":
     )
 
     st.subheader("Plan segmentation")
-    if "plan" in df_users.columns:
-        plan_counts = df_users["plan"].fillna("(unknown)").value_counts()
+    if "plan" in df_users_unique.columns:
+        plan_counts = df_users_unique["plan"].fillna("(unknown)").value_counts()
         left, right = st.columns((1, 1))
         with left:
             st.bar_chart(plan_counts)
@@ -202,25 +218,25 @@ if page == "Overview":
     c_a, c_b = st.columns(2)
     with c_a:
         st.markdown("**Monthly credit limit (`plan_limit`)**")
-        if "plan_limit" in df_users.columns:
-            lim = pd.to_numeric(df_users["plan_limit"], errors="coerce").fillna(0).astype(int)
+        if "plan_limit" in df_users_unique.columns:
+            lim = pd.to_numeric(df_users_unique["plan_limit"], errors="coerce").fillna(0).astype(int)
             lim_counts = lim.value_counts().sort_index()
             st.bar_chart(lim_counts)
         else:
             st.caption("Column not present.")
     with c_b:
         st.markdown("**PAYGO flag**")
-        if "has_paygo" in df_users.columns:
-            paygo_label = np.where(df_users["has_paygo"], "PAYGO on", "PAYGO off")
+        if "has_paygo" in df_users_unique.columns:
+            paygo_label = np.where(df_users_unique["has_paygo"], "PAYGO on", "PAYGO off")
             st.bar_chart(pd.Series(paygo_label).value_counts())
         else:
             st.caption("Column not present.")
 
-    if "created_at" in df_users.columns and df_users["created_at"].notna().any():
+    if "created_at" in df_users_unique.columns and df_users_unique["created_at"].notna().any():
         st.subheader("Account age (snapshot)")
-        anchor = df_users["created_at"].max()
-        valid_created = df_users["created_at"].notna()
-        age_days = (anchor - df_users.loc[valid_created, "created_at"]).dt.days.clip(lower=0)
+        anchor = df_users_unique["created_at"].max()
+        valid_created = df_users_unique["created_at"].notna()
+        age_days = (anchor - df_users_unique.loc[valid_created, "created_at"]).dt.days.clip(lower=0)
         st.caption(f"Days since signup, relative to newest account in sample ({anchor.date()}).")
         age_binned = pd.cut(
             age_days,
@@ -306,7 +322,7 @@ elif page == "Product Analysis":
 
     with tab2:
         st.subheader("Pay-as-you-go vs research engagement")
-        u = df_users.copy()
+        u = df_users_unique.copy()
         u["did_research"] = u["user_id"].isin(research_users)
         paygo = u.groupby("has_paygo").agg(users=("user_id", "count"), research_adopters=("did_research", "sum"))
         paygo["share_adopted"] = paygo["research_adopters"] / paygo["users"]
