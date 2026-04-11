@@ -177,27 +177,18 @@ if page == "Overview":
 
     paying_pct = (100.0 * paying_users_count / total_users) if total_users else 0.0
 
-    span_mins: list[pd.Timestamp] = []
-    span_maxs: list[pd.Timestamp] = []
     if "hour" in df_hourly.columns:
         h = pd.to_datetime(df_hourly["hour"], utc=True, errors="coerce").dropna()
         if not h.empty:
-            span_mins.append(h.min())
-            span_maxs.append(h.max())
-    if "created_at" in df_users_unique.columns:
-        c = pd.to_datetime(df_users_unique["created_at"], utc=True, errors="coerce").dropna()
-        if not c.empty:
-            span_mins.append(c.min())
-            span_maxs.append(c.max())
-    if span_mins and span_maxs:
-        ds_start = min(span_mins)
-        ds_end = max(span_maxs)
-        range_label = f"{ds_start.strftime('%Y-%m-%d')} → {ds_end.strftime('%Y-%m-%d')} (UTC)"
+            ds_start, ds_end = h.min(), h.max()
+            range_label = f"{ds_start.strftime('%Y-%m-%d')} → {ds_end.strftime('%Y-%m-%d')} (UTC)"
+        else:
+            range_label = "not available (no valid hour timestamps)"
     else:
-        range_label = "not available (missing timestamps)"
+        range_label = "not available (no hour column)"
 
     st.metric("Total Users", f"{total_users:,}")
-    st.caption(f"Dataset span: {range_label}")
+    st.caption(f"Dataset span (hourly usage): {range_label}")
 
     free_pct_users = (100.0 * free_users_count / total_users) if total_users else 0.0
 
