@@ -7,13 +7,8 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import streamlit as st
-from bokeh.models import ColumnDataSource
-from bokeh.plotting import figure
-from bokeh.transform import factor_cmap
-import bokeh.palettes as bp
 
 # -----------------------------------------------------------------------------
 # Page
@@ -61,27 +56,22 @@ def load_data():
 
     try:
         frames = read_zip()
-        source = "data.zip"
     except (FileNotFoundError, KeyError):
         try:
             frames = read_loose(BASE_DIR)
-            source = str(BASE_DIR)
         except FileNotFoundError:
             frames = read_loose(PARENT_DIR)
-            source = str(PARENT_DIR)
 
     df_hourly = frames["hourly_usage.csv"].copy()
     df_costs = frames["infrastructure_costs.csv"].copy()
     df_research = frames["research_requests.csv"].copy()
     df_users = frames["users.csv"].copy()
 
-    # Normalize to snake_case for simpler code paths
     df_hourly.columns = df_hourly.columns.str.lower()
     df_costs.columns = df_costs.columns.str.lower()
     df_research.columns = df_research.columns.str.lower()
     df_users.columns = df_users.columns.str.lower()
 
-    # Parse dates
     if "hour" in df_hourly.columns:
         df_hourly["hour"] = pd.to_datetime(df_hourly["hour"], utc=True, errors="coerce")
     if "hour" in df_costs.columns:
@@ -95,7 +85,6 @@ def load_data():
     if "created_at" in df_users.columns:
         df_users["created_at"] = pd.to_datetime(df_users["created_at"], errors="coerce")
 
-    # Numeric cleanup
     for c in ("request_cost", "credits_used", "response_time_seconds"):
         if c in df_research.columns:
             df_research[c] = pd.to_numeric(df_research[c], errors="coerce")
@@ -103,22 +92,37 @@ def load_data():
         if c in df_hourly.columns:
             df_hourly[c] = pd.to_numeric(df_hourly[c], errors="coerce")
 
-    bool_cols = ["has_output_schema", "stream"]
-    for c in bool_cols:
+    for c in ("has_output_schema", "stream"):
         if c in df_research.columns:
             df_research[c] = df_research[c].astype(str).str.upper().eq("TRUE")
 
     if "has_paygo" in df_users.columns:
         df_users["has_paygo"] = df_users["has_paygo"].astype(str).str.lower().eq("true")
 
-    return df_hourly, df_costs, df_research, df_users, source
+    return df_hourly, df_costs, df_research, df_users
 
 
 try:
-    df_hourly, df_costs, df_research, df_users, _data_source = load_data()
+    df_hourly, df_costs, df_research, df_users = load_data()
 except Exception as e:
     st.error(f"Could not load data: {e}")
     st.stop()
+
+# One row per user_id (for consistent user counts)
+_u = df_users.dropna(subset=["user_id"]).copy()
+_u["user_id"] = _u["user_id"].astype(int)
+_agg: dict = {}
+for _col in ("plan", "plan_limit"):
+    if _col in _u.columns:
+        _agg[_col] = "first"
+if "has_paygo" in _u.columns:
+    _agg["has_paygo"] = "max"
+if "created_at" in _u.columns:
+    _agg["created_at"] = "min"
+if _agg:
+    df_users_unique = _u.groupby("user_id", as_index=False).agg(_agg)
+else:
+    df_users_unique = _u.drop_duplicates(subset=["user_id"])
 
 # -----------------------------------------------------------------------------
 # Sidebar
@@ -133,280 +137,23 @@ st.sidebar.markdown("---")
 st.sidebar.caption("Tavily Data Analyst home assignment — Dan Benbenisti")
 
 # -----------------------------------------------------------------------------
-# Derived helpers (not cached — cheap vs load)
-# -----------------------------------------------------------------------------
-cost_value_cols = [
-    c
-    for c in df_costs.columns
-    if c != "hour" and pd.api.types.is_numeric_dtype(df_costs[c])
-]
-if not cost_value_cols:
-    cost_value_cols = [c for c in df_costs.columns if c != "hour"]
-
-df_costs_long = df_costs.melt(
-    id_vars=["hour"],
-    value_vars=[c for c in cost_value_cols if c in df_costs.columns],
-    var_name="component",
-    value_name="usd",
-)
-df_costs_long["usd"] = pd.to_numeric(df_costs_long["usd"], errors="coerce").fillna(0)
-
-research_users = set(df_research["user_id"].dropna().astype(int))
-
-# One row per user_id: user counts and segmentation use unique IDs, not raw row count
-_u = df_users.dropna(subset=["user_id"]).copy()
-_u["user_id"] = _u["user_id"].astype(int)
-_agg: dict = {}
-for _col in ("plan", "plan_limit"):
-    if _col in _u.columns:
-        _agg[_col] = "first"
-if "has_paygo" in _u.columns:
-    _agg["has_paygo"] = "max"  # True if any duplicate row had PAYGO on
-if "created_at" in _u.columns:
-    _agg["created_at"] = "min"  # earliest = signup
-if _agg:
-    df_users_unique = _u.groupby("user_id", as_index=False).agg(_agg)
-else:
-    df_users_unique = _u.drop_duplicates(subset=["user_id"])
-
-# -----------------------------------------------------------------------------
 # Overview
 # -----------------------------------------------------------------------------
 if page == "Overview":
     st.title("Overview")
-    st.markdown(
-        "High-level snapshot of the **sampled user base** from `users.csv` (**one row per `user_id`**). "
-        "Growth reflects **account creation time in this extract**, not necessarily company-wide signups."
-    )
-
     n_users = int(df_users_unique["user_id"].nunique())
-    uid_set = set(df_users_unique["user_id"].dropna().astype(int))
-    research_in_sample = len(research_users & uid_set)
-    research_pct = (100.0 * research_in_sample / n_users) if n_users else 0.0
-
-    k1, k2 = st.columns(2)
-    k1.metric("Users in sample (unique `user_id`)", f"{n_users:,}")
-    k2.metric(
-        "Users with ≥1 research request",
-        f"{research_in_sample:,}",
-        f"{research_pct:.1f}% of sample",
-        help="Distinct `user_id` in `users.csv` that also appear in `research_requests.csv`.",
-    )
-
-    st.subheader("Plan & PAYGO")
-    st.markdown(
-        "How **unique users** in `users.csv` split by **subscription plan** and **pay-as-you-go (PAYGO)**. "
-        "Percentages in the last column are **within that plan only**; the middle column is **share of the full sample**."
-    )
-
-    if "plan" not in df_users_unique.columns:
-        st.info("No `plan` column in users data.")
-    elif n_users == 0:
-        st.info("No users to segment.")
-    else:
-        u = df_users_unique.copy()
-        u["plan"] = u["plan"].fillna("(unknown)").astype(str)
-        seg = u.groupby("plan", as_index=False).agg(users=("user_id", "count"))
-        seg["share_sample_pct"] = 100.0 * seg["users"] / n_users
-
-        if "has_paygo" in u.columns:
-            paygo_n = int(u["has_paygo"].sum())
-            paygo_overall_pct = 100.0 * paygo_n / n_users
-            st.caption(
-                f"**Whole sample:** {paygo_overall_pct:.1f}% have PAYGO enabled ({paygo_n:,} of {n_users:,})."
-            )
-            paygo = u.groupby("plan")["has_paygo"].mean().reset_index()
-            paygo.columns = ["plan", "paygo_within_plan_pct"]
-            seg = seg.merge(paygo, on="plan", how="left")
-            seg["paygo_within_plan_pct"] = (100.0 * seg["paygo_within_plan_pct"]).round(1)
-        else:
-            seg["paygo_within_plan_pct"] = np.nan
-
-        seg = seg.sort_values("users", ascending=False).reset_index(drop=True)
-
-        tbl = pd.DataFrame(
-            {
-                "Plan": seg["plan"],
-                "Users": seg["users"].astype(int),
-                "Share of sample (%)": seg["share_sample_pct"].round(1),
-            }
-        )
-        col_cfg: dict = {
-            "Users": st.column_config.NumberColumn("Users", help="Count of unique user_ids on this plan.", format="%d"),
-            "Share of sample (%)": st.column_config.NumberColumn(
-                "Share of sample (%)",
-                help="Percent of all users in this table. Columns sum to 100%.",
-                format="%.1f",
-            ),
-        }
-        if "has_paygo" in u.columns:
-            tbl["PAYGO on (% of plan)"] = seg["paygo_within_plan_pct"]
-            col_cfg["PAYGO on (% of plan)"] = st.column_config.NumberColumn(
-                "PAYGO on (% of plan)",
-                help="Among users on this row's plan only: % with PAYGO enabled.",
-                format="%.1f",
-            )
-
-        st.dataframe(tbl, use_container_width=True, hide_index=True, column_config=col_cfg)
-
-        st.caption(
-            "**Definitions:** *Share of sample* = each plan’s size ÷ all users (one row per `user_id`). "
-            "*PAYGO on (% of plan)* = PAYGO users on that plan ÷ users on that plan."
-        )
-
-    st.subheader("Account growth (sample)")
-    if "created_at" not in df_users_unique.columns:
-        st.info("No `created_at` column — cannot chart signups over time.")
-    else:
-        g = df_users_unique.dropna(subset=["created_at"]).copy()
-        n_missing = int(df_users_unique["created_at"].isna().sum())
-        if g.empty:
-            st.info("All `created_at` values are missing — cannot chart signups over time.")
-        else:
-            g["signup_day"] = pd.to_datetime(g["created_at"], utc=True, errors="coerce").dt.normalize()
-            g = g.dropna(subset=["signup_day"])
-            daily = g.groupby("signup_day").size().reset_index(name="new_users").sort_values("signup_day")
-            d_min = pd.Timestamp(daily["signup_day"].min())
-            d_max = pd.Timestamp(daily["signup_day"].max())
-            if d_min.tzinfo is None:
-                daily["signup_day"] = pd.to_datetime(daily["signup_day"], utc=True)
-                d_min = pd.Timestamp(daily["signup_day"].min())
-                d_max = pd.Timestamp(daily["signup_day"].max())
-            all_days = pd.date_range(d_min, d_max, freq="D", tz="UTC")
-            full = (
-                daily.set_index("signup_day")
-                .reindex(all_days, fill_value=0)
-                .rename_axis("signup_day")
-                .reset_index()
-            )
-            full["cumulative_users"] = full["new_users"].cumsum()
-            days_with_signups = int((full["new_users"] > 0).sum())
-            st.caption(
-                f"**UTC calendar days** from `created_at` · span **{d_min.date()}** → **{d_max.date()}** "
-                f"· **{days_with_signups:,}** / **{len(full):,}** days with ≥1 signup"
-                + (f" · **{n_missing:,}** users without `created_at` (excluded)" if n_missing else "")
-            )
-            st.markdown("**New accounts per day** (count per UTC date; days with zero signups show as 0)")
-            st.bar_chart(full.set_index("signup_day")[["new_users"]], height=260)
-            st.markdown("**Cumulative users in sample** (running total, all calendar days in range)")
-            st.line_chart(full.set_index("signup_day")[["cumulative_users"]], height=260)
-            st.caption(
-                "Interpretation: this is **growth within the sampled extract**; sampling and extract windows can "
-                "distort recent days. Use **Product analysis** for request-level behavior."
-            )
+    st.markdown(f"**Total users** (unique `user_id` in `users.csv`): **{n_users:,}**")
 
 # -----------------------------------------------------------------------------
-# Product Analysis (users + research_requests + hourly_usage)
+# Product Analysis
 # -----------------------------------------------------------------------------
 elif page == "Product Analysis":
-    st.title("Product analysis — Research API & platform usage")
-    st.markdown(
-        "Joins **users**, **research_requests**, and **hourly_usage** (same `user_id` universe in the sample)."
-    )
-
-    tab1, tab2, tab3 = st.tabs(["Research requests", "Users & adoption", "Hourly portfolio"])
-
-    with tab1:
-        st.subheader("Model tier & client surface")
-        c1, c2 = st.columns(2)
-        with c1:
-            if "model" in df_research.columns:
-                st.bar_chart(df_research["model"].fillna("(empty)").value_counts())
-        with c2:
-            if "client_source" in df_research.columns:
-                top = df_research["client_source"].fillna("unknown").value_counts().head(12)
-                st.bar_chart(top)
-
-        st.subheader("Latency & intensity (successful vs other)")
-        df_r = df_research.copy()
-        df_r["outcome_group"] = np.where(
-            df_r["status"].fillna("").astype(str).str.lower().eq("success"),
-            "success",
-            "other / empty",
-        )
-        agg = df_r.groupby("outcome_group").agg(
-            n=("request_id", "count"),
-            median_latency_s=("response_time_seconds", "median"),
-            median_tokens=("total_tokens", "median"),
-            median_searches=("search_calls", "median"),
-        )
-        show = agg.copy()
-        show["median_latency_s"] = show["median_latency_s"].round(1)
-        show["median_tokens"] = show["median_tokens"].round(0)
-        show["median_searches"] = show["median_searches"].round(1)
-        st.dataframe(show)
-
-        st.subheader("Structured output & streaming")
-        if "has_output_schema" in df_research.columns and "stream" in df_research.columns:
-            feat = df_research.groupby(["has_output_schema", "stream"]).size().reset_index(name="n")
-            st.dataframe(feat)
-
-    with tab2:
-        st.subheader("Pay-as-you-go vs research engagement")
-        u = df_users_unique.copy()
-        u["did_research"] = u["user_id"].isin(research_users)
-        paygo = u.groupby("has_paygo").agg(users=("user_id", "count"), research_adopters=("did_research", "sum"))
-        paygo["share_adopted"] = paygo["research_adopters"] / paygo["users"]
-        paygo_show = paygo.copy()
-        paygo_show["share_adopted"] = (paygo_show["share_adopted"] * 100).round(1).astype(str) + "%"
-        st.dataframe(paygo_show)
-
-        st.subheader("Account age (days) at data extract — research adopters vs not")
-        if u["created_at"].notna().any():
-            anchor = u["created_at"].max()
-            u["account_age_days"] = (anchor - u["created_at"]).dt.days
-            box_df = u.assign(segment=np.where(u["did_research"], "research user", "no research row"))
-            summary = box_df.groupby("segment")["account_age_days"].describe()[["mean", "50%", "min", "max"]]
-            st.dataframe(summary)
-
-    with tab3:
-        st.subheader("Request mix in hourly_usage (sampled users)")
-        if "request_type" in df_hourly.columns:
-            st.bar_chart(df_hourly.groupby("request_type")["request_count"].sum().sort_values(ascending=False))
-        if "request_type" in df_hourly.columns and "depth" in df_hourly.columns:
-            st.subheader("Depth within type (top combinations)")
-            combo = (
-                df_hourly.groupby(["request_type", "depth"])["request_count"]
-                .sum()
-                .reset_index()
-                .sort_values("request_count", ascending=False)
-                .head(20)
-            )
-            st.dataframe(combo, use_container_width=True)
+    st.title("Product analysis")
+    st.caption("Charts and tables removed — add content step by step.")
 
 # -----------------------------------------------------------------------------
 # Infrastructure & Cost Analysis
 # -----------------------------------------------------------------------------
 elif page == "Infrastructure & Cost Analysis":
-    st.title("Infrastructure & model cost analysis")
-    st.markdown("From **infrastructure_costs.csv**: hourly USD by component (EKS, data, models, …).")
-
-    component_totals = df_costs_long.groupby("component")["usd"].sum().sort_values(ascending=False)
-    top_n = st.slider("Top N components (chart)", 5, 25, 12)
-    top_components = component_totals.head(top_n).index.tolist()
-
-    sub = df_costs_long[df_costs_long["component"].isin(top_components)]
-    pivot = sub.pivot_table(index="hour", columns="component", values="usd", aggfunc="sum").fillna(0)
-    pivot = pivot.sort_index()
-
-    st.subheader(f"Stacked area — top {top_n} components")
-    st.caption("Use the legend in the chart menu to show/hide series (Streamlit native chart).")
-    st.area_chart(pivot, height=450)
-
-    st.subheader("Total spend by component")
-    bar_df = component_totals.head(20).reset_index()
-    bar_df.columns = ["component", "usd"]
-    factors = bar_df["component"].tolist()
-    src = ColumnDataSource(bar_df)
-    p2 = figure(
-        y_range=factors[::-1],
-        height=min(600, 24 * len(factors) + 120),
-        sizing_mode="stretch_width",
-        title="Top components by total USD",
-    )
-    cmap = factor_cmap("component", palette=bp.Category20[max(3, len(factors))], factors=factors)
-    p2.hbar(y="component", right="usd", height=0.7, source=src, color=cmap, alpha=0.85)
-    st.bokeh_chart(p2, use_container_width=True)
-
-    with st.expander("Raw long table (sample)"):
-        st.dataframe(df_costs_long.sort_values("hour", ascending=False).head(500))
+    st.title("Infrastructure & cost analysis")
+    st.caption("Charts and tables removed — add content step by step.")
