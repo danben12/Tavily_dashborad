@@ -60,9 +60,9 @@ page = st.sidebar.radio("Go to", [
     "Infrastructure & Cost Analysis", 
 ])
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("Dashboard Info")
-st.sidebar.info("Tavily Data Analyst Home Assignment by Dan Benbenisti")
+# st.sidebar.markdown("---")
+# st.sidebar.subheader("Dashboard Info")
+# st.sidebar.info("Tavily Data Analyst Home Assignment by Dan Benbenisti")
 
 # ==========================================
 # 4. Main Dashboard Area
