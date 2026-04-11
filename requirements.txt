@@ -2,4 +2,3 @@ streamlit
 pandas
 numpy
 bokeh
-plotly>=5.18

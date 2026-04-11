@@ -9,7 +9,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 from bokeh.models import ColumnDataSource
 from bokeh.plotting import figure
@@ -176,9 +175,14 @@ else:
 if page == "Overview":
     st.title("Overview")
     n_users = int(df_users_unique["user_id"].nunique())
-    st.metric("Users (unique user_id)", f"{n_users:,}")
+    st.metric("Users in sample (unique `user_id`)", f"{n_users:,}")
 
-    st.subheader("Plan segmentation")
+    st.subheader("Plan & PAYGO")
+    st.markdown(
+        "How **unique users** in `users.csv` split by **subscription plan** and **pay-as-you-go (PAYGO)**. "
+        "Percentages in the last column are **within that plan only**; the middle column is **share of the full sample**."
+    )
+
     if "plan" not in df_users_unique.columns:
         st.info("No `plan` column in users data.")
     elif n_users == 0:
@@ -187,115 +191,52 @@ if page == "Overview":
         u = df_users_unique.copy()
         u["plan"] = u["plan"].fillna("(unknown)").astype(str)
         seg = u.groupby("plan", as_index=False).agg(users=("user_id", "count"))
-        seg["% of all users"] = (100.0 * seg["users"] / n_users).map(lambda x: f"{x:.1f}%")
-        if "has_paygo" in u.columns:
-            paygo = u.groupby("plan")["has_paygo"].mean().reset_index()
-            paygo.columns = ["plan", "_paygo_rate"]
-            seg = seg.merge(paygo, on="plan", how="left")
-            seg["% with PAYGO (within plan)"] = (100.0 * seg["_paygo_rate"]).map(lambda x: f"{x:.1f}%")
-            seg = seg.drop(columns=["_paygo_rate"])
-        seg = seg.sort_values("users", ascending=False).reset_index(drop=True)
-        seg_display = seg.drop(columns=["users"])
-        st.dataframe(seg_display, use_container_width=True, hide_index=True)
-        st.caption(
-            "**% of all users** — share of unique users in each plan (sums to 100%). "
-            "**% with PAYGO (within plan)** — among users on that plan only, share with PAYGO enabled."
-        )
+        seg["share_sample_pct"] = 100.0 * seg["users"] / n_users
 
         if "has_paygo" in u.columns:
-            plans_ordered = seg["plan"].tolist()
-            # String segments avoid unstack issues if booleans differ by environment (e.g. numpy vs Python bool)
-            u["_paygo_seg"] = np.where(u["has_paygo"], "PAYGO on", "Non-PAYGO")
-            cnt = u.groupby(["plan", "_paygo_seg"])["user_id"].count().unstack(fill_value=0)
-            cnt = cnt.reindex(plans_ordered).fillna(0).astype(int)
-            paygo_off = cnt.get("Non-PAYGO", pd.Series(0, index=plans_ordered))
-            paygo_on = cnt.get("PAYGO on", pd.Series(0, index=plans_ordered))
-            paygo_off = paygo_off.reindex(plans_ordered).fillna(0).astype(int)
-            paygo_on = paygo_on.reindex(plans_ordered).fillna(0).astype(int)
-
-            # --- Sankey: all users → plan → (Non-PAYGO | PAYGO) — link width = user count
-            n_plans = len(plans_ordered)
-            labels: list[str] = [f"All users<br>{n_users:,}"]
-            node_colors: list[str] = ["#475569"]
-
-            plan_idx: dict[str, int] = {}
-            for i, p in enumerate(plans_ordered):
-                off = int(paygo_off.loc[p])
-                on = int(paygo_on.loc[p])
-                tot = off + on
-                idx = len(labels)
-                plan_idx[p] = idx
-                labels.append(f"{p}<br>{tot:,}")
-                node_colors.append("#cbd5e1")
-
-            leaf_idx: dict[tuple[str, str], int] = {}
-            for p in plans_ordered:
-                off = int(paygo_off.loc[p])
-                on = int(paygo_on.loc[p])
-                for seg_name, n_u in (("Non-PAYGO", off), ("PAYGO on", on)):
-                    idx = len(labels)
-                    leaf_idx[(p, seg_name)] = idx
-                    pct = (100.0 * n_u / n_users) if n_users else 0.0
-                    labels.append(f"{p} · {seg_name}<br>{n_u:,} ({pct:.2f}%)")
-                    node_colors.append("#94a3b8" if seg_name == "Non-PAYGO" else "#1d4ed8")
-
-            sources: list[int] = []
-            targets: list[int] = []
-            values: list[int] = []
-            link_colors: list[str] = []
-
-            for p in plans_ordered:
-                off = int(paygo_off.loc[p])
-                on = int(paygo_on.loc[p])
-                tot = off + on
-                pi = plan_idx[p]
-                if tot > 0:
-                    sources.append(0)
-                    targets.append(pi)
-                    values.append(tot)
-                    link_colors.append("rgba(148, 163, 184, 0.35)")
-                if off > 0:
-                    sources.append(pi)
-                    targets.append(leaf_idx[(p, "Non-PAYGO")])
-                    values.append(off)
-                    link_colors.append("rgba(148, 163, 184, 0.45)")
-                if on > 0:
-                    sources.append(pi)
-                    targets.append(leaf_idx[(p, "PAYGO on")])
-                    values.append(on)
-                    link_colors.append("rgba(29, 78, 216, 0.45)")
-
-            sankey = go.Figure(
-                data=[
-                    go.Sankey(
-                        arrangement="snap",
-                        node=dict(
-                            pad=18,
-                            thickness=22,
-                            line=dict(color="rgba(0,0,0,0.35)", width=0.5),
-                            label=labels,
-                            color=node_colors,
-                        ),
-                        link=dict(
-                            source=sources,
-                            target=targets,
-                            value=values,
-                            color=link_colors,
-                        ),
-                    )
-                ]
-            )
-            sankey.update_layout(
-                title_text="Users by plan and PAYGO (flow width = user count)",
-                font=dict(size=12),
-                height=max(520, min(900, 140 + n_plans * 90)),
-                margin=dict(l=20, r=20, t=50, b=20),
-            )
-            st.plotly_chart(sankey, use_container_width=True)
+            paygo_n = int(u["has_paygo"].sum())
+            paygo_overall_pct = 100.0 * paygo_n / n_users
             st.caption(
-                "Sankey-style flow: **All users** split by **plan**, then each plan splits into **Non-PAYGO** vs **PAYGO**. "
-                "Narrow flows stay visible next to large ones (unlike a single stacked bar)."
+                f"**Whole sample:** {paygo_overall_pct:.1f}% have PAYGO enabled ({paygo_n:,} of {n_users:,})."
             )
+            paygo = u.groupby("plan")["has_paygo"].mean().reset_index()
+            paygo.columns = ["plan", "paygo_within_plan_pct"]
+            seg = seg.merge(paygo, on="plan", how="left")
+            seg["paygo_within_plan_pct"] = (100.0 * seg["paygo_within_plan_pct"]).round(1)
+        else:
+            seg["paygo_within_plan_pct"] = np.nan
+
+        seg = seg.sort_values("users", ascending=False).reset_index(drop=True)
+
+        tbl = pd.DataFrame(
+            {
+                "Plan": seg["plan"],
+                "Users": seg["users"].astype(int),
+                "Share of sample (%)": seg["share_sample_pct"].round(1),
+            }
+        )
+        col_cfg: dict = {
+            "Users": st.column_config.NumberColumn("Users", help="Count of unique user_ids on this plan.", format="%d"),
+            "Share of sample (%)": st.column_config.NumberColumn(
+                "Share of sample (%)",
+                help="Percent of all users in this table. Columns sum to 100%.",
+                format="%.1f",
+            ),
+        }
+        if "has_paygo" in u.columns:
+            tbl["PAYGO on (% of plan)"] = seg["paygo_within_plan_pct"]
+            col_cfg["PAYGO on (% of plan)"] = st.column_config.NumberColumn(
+                "PAYGO on (% of plan)",
+                help="Among users on this row's plan only: % with PAYGO enabled.",
+                format="%.1f",
+            )
+
+        st.dataframe(tbl, use_container_width=True, hide_index=True, column_config=col_cfg)
+
+        st.caption(
+            "**Definitions:** *Share of sample* = each plan’s size ÷ all users (one row per `user_id`). "
+            "*PAYGO on (% of plan)* = PAYGO users on that plan ÷ users on that plan."
+        )
 
 # -----------------------------------------------------------------------------
 # Product Analysis (users + research_requests + hourly_usage)
