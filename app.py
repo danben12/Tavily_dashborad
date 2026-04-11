@@ -138,9 +138,6 @@ page = st.sidebar.radio(
 st.sidebar.markdown("---")
 st.sidebar.caption("Tavily Data Analyst home assignment — Dan Benbenisti")
 
-def _fmt_millions(n: float) -> str:
-    return f"{n / 1e6:.2f}M"
-
 
 def _is_paying_user_row(u: pd.DataFrame) -> pd.Series:
     """Paying = Pay-as-you-go and/or non-freemium plan. Adjust FREEMIUM_PLANS as needed."""
@@ -166,11 +163,6 @@ if page == "Overview":
     else:
         total_requests_platform = len(df_hourly)
 
-    if "total_credits_used" in df_hourly.columns:
-        total_credits_platform = int(df_hourly["total_credits_used"].sum())
-    else:
-        total_credits_platform = 0
-
     if "request_type" in df_hourly.columns and "request_count" in df_hourly.columns:
         endpoint_dist = df_hourly.groupby(df_hourly["request_type"].fillna("(unknown)").astype(str))["request_count"].sum()
     else:
@@ -185,11 +177,27 @@ if page == "Overview":
 
     paying_pct = (100.0 * paying_users_count / total_users) if total_users else 0.0
 
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Users", f"{total_users:,}")
-    m2.metric("Total Requests", _fmt_millions(float(total_requests_platform)))
-    m3.metric("Total Credits Consumed", _fmt_millions(float(total_credits_platform)))
-    m4.metric("Paying Users (%)", f"{paying_pct:.1f}%")
+    span_mins: list[pd.Timestamp] = []
+    span_maxs: list[pd.Timestamp] = []
+    if "hour" in df_hourly.columns:
+        h = pd.to_datetime(df_hourly["hour"], utc=True, errors="coerce").dropna()
+        if not h.empty:
+            span_mins.append(h.min())
+            span_maxs.append(h.max())
+    if "created_at" in df_users_unique.columns:
+        c = pd.to_datetime(df_users_unique["created_at"], utc=True, errors="coerce").dropna()
+        if not c.empty:
+            span_mins.append(c.min())
+            span_maxs.append(c.max())
+    if span_mins and span_maxs:
+        ds_start = min(span_mins)
+        ds_end = max(span_maxs)
+        range_label = f"{ds_start.strftime('%Y-%m-%d')} → {ds_end.strftime('%Y-%m-%d')} (UTC)"
+    else:
+        range_label = "not available (missing timestamps)"
+
+    st.metric("Total Users", f"{total_users:,}")
+    st.caption(f"Dataset span: {range_label}")
 
     free_pct_users = (100.0 * free_users_count / total_users) if total_users else 0.0
 
