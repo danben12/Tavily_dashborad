@@ -152,8 +152,6 @@ df_costs_long = df_costs.melt(
 df_costs_long["usd"] = pd.to_numeric(df_costs_long["usd"], errors="coerce").fillna(0)
 
 research_users = set(df_research["user_id"].dropna().astype(int))
-status_series = df_research["status"].fillna("").astype(str).str.strip()
-status_series = status_series.replace("", "(empty)")
 
 # One row per user_id: user counts and segmentation use unique IDs, not raw row count
 _u = df_users.dropna(subset=["user_id"]).copy()
@@ -171,130 +169,13 @@ if _agg:
 else:
     df_users_unique = _u.drop_duplicates(subset=["user_id"])
 
-# Mean total requests per calendar day (hourly_usage: sum request_count by day, then average days)
-avg_daily_request_count: float | None = None
-n_distinct_days_hourly = 0
-if "hour" in df_hourly.columns and "request_count" in df_hourly.columns:
-    _hu = df_hourly.dropna(subset=["hour"]).copy()
-    _hu["_day"] = _hu["hour"].dt.floor("D")
-    _daily_req = _hu.groupby("_day", as_index=False)["request_count"].sum()
-    n_distinct_days_hourly = int(len(_daily_req))
-    if n_distinct_days_hourly:
-        avg_daily_request_count = float(_daily_req["request_count"].mean())
-
 # -----------------------------------------------------------------------------
 # Overview
 # -----------------------------------------------------------------------------
 if page == "Overview":
     st.title("Overview")
-    st.caption("High-level view of the sampled user base: scale, plans, and monetization levers.")
-
-    user_ids_in_table = set(df_users_unique["user_id"])
     n_users = int(df_users_unique["user_id"].nunique())
-    paygo_users = int(df_users_unique["has_paygo"].sum()) if "has_paygo" in df_users_unique.columns else 0
-    paygo_pct = (100.0 * paygo_users / n_users) if n_users else 0.0
-    research_distinct = len(research_users)
-    research_in_sample = len(research_users & user_ids_in_table)
-    research_pct = (100.0 * research_in_sample / n_users) if n_users else 0.0
-
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Users in sample (unique user_id)", f"{n_users:,}")
-    m2.metric(
-        "Pay-as-you-go enabled",
-        f"{paygo_users:,}",
-        f"{paygo_pct:.1f}% of users",
-    )
-    m3.metric(
-        "Users with ≥1 research request",
-        f"{research_in_sample:,}",
-        f"{research_pct:.1f}% of sample ({research_distinct:,} distinct in research log)",
-    )
-
-    st.subheader("Plan segmentation")
-    if "plan" in df_users_unique.columns:
-        plan_counts = df_users_unique["plan"].fillna("(unknown)").value_counts()
-        left, right = st.columns((1, 1))
-        with left:
-            st.bar_chart(plan_counts)
-        with right:
-            seg = plan_counts.reset_index()
-            seg.columns = ["Plan", "Users"]
-            total_p = int(seg["Users"].sum())
-            seg["Share"] = ((seg["Users"] / total_p) * 100).round(1).astype(str) + "%"
-            st.dataframe(seg, hide_index=True, use_container_width=True)
-    else:
-        st.info("No `plan` column in users data.")
-
-    st.subheader("Plan limits & PAYGO mix")
-    c_a, c_b = st.columns(2)
-    with c_a:
-        st.markdown("**Monthly credit limit (`plan_limit`)**")
-        if "plan_limit" in df_users_unique.columns:
-            lim = pd.to_numeric(df_users_unique["plan_limit"], errors="coerce").fillna(0).astype(int)
-            lim_counts = lim.value_counts().sort_index()
-            st.bar_chart(lim_counts)
-        else:
-            st.caption("Column not present.")
-    with c_b:
-        st.markdown("**PAYGO flag**")
-        if "has_paygo" in df_users_unique.columns:
-            paygo_label = np.where(df_users_unique["has_paygo"], "PAYGO on", "PAYGO off")
-            st.bar_chart(pd.Series(paygo_label).value_counts())
-        else:
-            st.caption("Column not present.")
-
-    if "created_at" in df_users_unique.columns and df_users_unique["created_at"].notna().any():
-        st.subheader("Account age (snapshot)")
-        anchor = df_users_unique["created_at"].max()
-        valid_created = df_users_unique["created_at"].notna()
-        age_days = (anchor - df_users_unique.loc[valid_created, "created_at"]).dt.days.clip(lower=0)
-        st.caption(f"Days since signup, relative to newest account in sample ({anchor.date()}).")
-        age_binned = pd.cut(
-            age_days,
-            bins=[0, 30, 90, 180, 365, float("inf")],
-            labels=["0–30d", "31–90d", "91–180d", "181–365d", "365d+"],
-            right=True,
-            include_lowest=True,
-        )
-        bucket_order = ["0–30d", "31–90d", "91–180d", "181–365d", "365d+"]
-        age_counts = age_binned.astype(str).value_counts().reindex(bucket_order).fillna(0).astype(int)
-        st.bar_chart(age_counts)
-
-    with st.expander("Operational snapshot (usage volume, cost, research outcomes)"):
-        total_infra_usd = float(df_costs_long["usd"].sum())
-        total_hourly_requests = (
-            int(df_hourly["request_count"].sum()) if "request_count" in df_hourly.columns else len(df_hourly)
-        )
-        n_research_req = len(df_research)
-        e1, e2, e3, e4 = st.columns(4)
-        e1.metric("Infra + model spend (period)", f"${total_infra_usd:,.0f}")
-        e2.metric("Request events (hourly log)", f"{total_hourly_requests:,}")
-        e3.metric("Research API requests", f"{n_research_req:,}")
-        if avg_daily_request_count is not None:
-            e4.metric(
-                "Avg daily requests (hourly_usage)",
-                f"{avg_daily_request_count:,.0f}",
-                help=f"Mean of total `request_count` per UTC calendar day across {n_distinct_days_hourly:,} days with data.",
-            )
-        else:
-            e4.metric("Avg daily requests (hourly_usage)", "—", help="Need `hour` and `request_count` columns.")
-        st.caption(
-            "**Avg daily requests:** for each UTC date, sum `request_count` over all rows in `hourly_usage.csv`, then average those daily totals."
-        )
-        st.subheader("Total cost per hour (all components)")
-        hourly_total = df_costs_long.groupby("hour", as_index=False)["usd"].sum()
-        hourly_total = hourly_total.sort_values("hour")
-        p = figure(
-            title="Sum of infrastructure + model columns by hour",
-            x_axis_type="datetime",
-            height=320,
-            sizing_mode="stretch_width",
-        )
-        p.line(hourly_total["hour"], hourly_total["usd"], line_width=2, color="#2563eb")
-        p.varea(x=hourly_total["hour"], y1=0, y2=hourly_total["usd"], fill_color="#93c5fd", fill_alpha=0.4)
-        st.bokeh_chart(p, use_container_width=True)
-        st.subheader("Research request outcomes")
-        st.bar_chart(status_series.value_counts())
+    st.metric("Users (unique user_id)", f"{n_users:,}")
 
 # -----------------------------------------------------------------------------
 # Product Analysis (users + research_requests + hourly_usage)
