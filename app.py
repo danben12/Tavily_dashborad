@@ -174,8 +174,24 @@ else:
 # -----------------------------------------------------------------------------
 if page == "Overview":
     st.title("Overview")
+    st.markdown(
+        "High-level snapshot of the **sampled user base** from `users.csv` (**one row per `user_id`**). "
+        "Growth reflects **account creation time in this extract**, not necessarily company-wide signups."
+    )
+
     n_users = int(df_users_unique["user_id"].nunique())
-    st.metric("Users in sample (unique `user_id`)", f"{n_users:,}")
+    uid_set = set(df_users_unique["user_id"].dropna().astype(int))
+    research_in_sample = len(research_users & uid_set)
+    research_pct = (100.0 * research_in_sample / n_users) if n_users else 0.0
+
+    k1, k2 = st.columns(2)
+    k1.metric("Users in sample (unique `user_id`)", f"{n_users:,}")
+    k2.metric(
+        "Users with ≥1 research request",
+        f"{research_in_sample:,}",
+        f"{research_pct:.1f}% of sample",
+        help="Distinct `user_id` in `users.csv` that also appear in `research_requests.csv`.",
+    )
 
     st.subheader("Plan & PAYGO")
     st.markdown(
@@ -237,6 +253,47 @@ if page == "Overview":
             "**Definitions:** *Share of sample* = each plan’s size ÷ all users (one row per `user_id`). "
             "*PAYGO on (% of plan)* = PAYGO users on that plan ÷ users on that plan."
         )
+
+    st.subheader("Account growth (sample)")
+    if "created_at" not in df_users_unique.columns:
+        st.info("No `created_at` column — cannot chart signups over time.")
+    else:
+        g = df_users_unique.dropna(subset=["created_at"]).copy()
+        n_missing = int(df_users_unique["created_at"].isna().sum())
+        if g.empty:
+            st.info("All `created_at` values are missing — cannot chart signups over time.")
+        else:
+            g["signup_day"] = pd.to_datetime(g["created_at"], utc=True, errors="coerce").dt.normalize()
+            g = g.dropna(subset=["signup_day"])
+            daily = g.groupby("signup_day").size().reset_index(name="new_users").sort_values("signup_day")
+            d_min = pd.Timestamp(daily["signup_day"].min())
+            d_max = pd.Timestamp(daily["signup_day"].max())
+            if d_min.tzinfo is None:
+                daily["signup_day"] = pd.to_datetime(daily["signup_day"], utc=True)
+                d_min = pd.Timestamp(daily["signup_day"].min())
+                d_max = pd.Timestamp(daily["signup_day"].max())
+            all_days = pd.date_range(d_min, d_max, freq="D", tz="UTC")
+            full = (
+                daily.set_index("signup_day")
+                .reindex(all_days, fill_value=0)
+                .rename_axis("signup_day")
+                .reset_index()
+            )
+            full["cumulative_users"] = full["new_users"].cumsum()
+            days_with_signups = int((full["new_users"] > 0).sum())
+            st.caption(
+                f"**UTC calendar days** from `created_at` · span **{d_min.date()}** → **{d_max.date()}** "
+                f"· **{days_with_signups:,}** / **{len(full):,}** days with ≥1 signup"
+                + (f" · **{n_missing:,}** users without `created_at` (excluded)" if n_missing else "")
+            )
+            st.markdown("**New accounts per day** (count per UTC date; days with zero signups show as 0)")
+            st.bar_chart(full.set_index("signup_day")[["new_users"]], height=260)
+            st.markdown("**Cumulative users in sample** (running total, all calendar days in range)")
+            st.line_chart(full.set_index("signup_day")[["cumulative_users"]], height=260)
+            st.caption(
+                "Interpretation: this is **growth within the sampled extract**; sampling and extract windows can "
+                "distort recent days. Use **Product analysis** for request-level behavior."
+            )
 
 # -----------------------------------------------------------------------------
 # Product Analysis (users + research_requests + hourly_usage)
