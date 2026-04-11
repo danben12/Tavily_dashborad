@@ -177,6 +177,30 @@ if page == "Overview":
     n_users = int(df_users_unique["user_id"].nunique())
     st.metric("Users (unique user_id)", f"{n_users:,}")
 
+    st.subheader("Plan segmentation")
+    if "plan" not in df_users_unique.columns:
+        st.info("No `plan` column in users data.")
+    elif n_users == 0:
+        st.info("No users to segment.")
+    else:
+        u = df_users_unique.copy()
+        u["plan"] = u["plan"].fillna("(unknown)").astype(str)
+        seg = u.groupby("plan", as_index=False).agg(users=("user_id", "count"))
+        seg["% of all users"] = (100.0 * seg["users"] / n_users).map(lambda x: f"{x:.1f}%")
+        if "has_paygo" in u.columns:
+            paygo = u.groupby("plan")["has_paygo"].mean().reset_index()
+            paygo.columns = ["plan", "_paygo_rate"]
+            seg = seg.merge(paygo, on="plan", how="left")
+            seg["% with PAYGO (within plan)"] = (100.0 * seg["_paygo_rate"]).map(lambda x: f"{x:.1f}%")
+            seg = seg.drop(columns=["_paygo_rate"])
+        seg = seg.sort_values("users", ascending=False).reset_index(drop=True)
+        seg_display = seg.drop(columns=["users"])
+        st.dataframe(seg_display, use_container_width=True, hide_index=True)
+        st.caption(
+            "**% of all users** — share of unique users in each plan (sums to 100%). "
+            "**% with PAYGO (within plan)** — among users on that plan only, share with PAYGO enabled."
+        )
+
 # -----------------------------------------------------------------------------
 # Product Analysis (users + research_requests + hourly_usage)
 # -----------------------------------------------------------------------------
