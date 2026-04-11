@@ -142,7 +142,7 @@ st.sidebar.caption("Tavily Data Analyst home assignment — Dan Benbenisti")
 if page == "Overview":
     st.title("Overview")
     n_users = int(df_users_unique["user_id"].nunique())
-    st.markdown(f"**Total users** (unique `user_id` in `users.csv`): **{n_users:,}**")
+    st.metric("Total users (unique `user_id`)", f"{n_users:,}")
 
 # -----------------------------------------------------------------------------
 # Product Analysis
