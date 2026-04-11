@@ -270,63 +270,85 @@ if page == "Overview":
         f"warrants careful unit economics — see **Product Analysis**."
     )
 
+    # Daily traffic (shared: left chart + start date to align user growth)
+    _daily = pd.DataFrame()
+    traffic_start = None
+    if "hour" in df_hourly.columns and "request_count" in df_hourly.columns:
+        _hu_pre = df_hourly.dropna(subset=["hour"]).copy()
+        _hu_pre["day"] = pd.to_datetime(_hu_pre["hour"], utc=True).dt.normalize()
+        _daily = (
+            _hu_pre.groupby("day", as_index=False)["request_count"]
+            .sum()
+            .sort_values("day")
+            .reset_index(drop=True)
+        )
+        if not _daily.empty:
+            traffic_start = pd.Timestamp(_daily["day"].iloc[0])
+            if traffic_start.tzinfo is None:
+                traffic_start = traffic_start.tz_localize("UTC")
+
     ts_left, ts_right = st.columns(2)
 
     with ts_left:
         st.markdown("### Platform Traffic (7-Day Moving Average)")
-        if "hour" not in df_hourly.columns or "request_count" not in df_hourly.columns:
-            st.info("Missing `hour` or `request_count` in hourly usage data.")
+        if _daily.empty:
+            st.info("Missing `hour` or `request_count` in hourly usage data, or no rows after aggregation.")
         else:
-            _hu = df_hourly.dropna(subset=["hour"]).copy()
-            _hu["day"] = pd.to_datetime(_hu["hour"], utc=True).dt.normalize()
-            _daily = (
-                _hu.groupby("day", as_index=False)["request_count"]
-                .sum()
-                .sort_values("day")
-                .reset_index(drop=True)
-            )
             # min_periods=1: early dates use 1..6 days of history; from day 7 onward uses full 7-day window
+            _daily = _daily.copy()
             _daily["requests_ma7"] = _daily["request_count"].rolling(window=7, min_periods=1).mean()
-            if _daily.empty:
-                st.info("Not enough data for a 7-day moving average.")
-            else:
-                fig_ma = px.line(
-                    _daily,
-                    x="day",
-                    y="requests_ma7",
-                    title=None,
-                )
-                fig_ma.update_traces(line=dict(color="#2563eb", width=2))
-                fig_ma.update_layout(
-                    showlegend=False,
-                    xaxis_title="Date (UTC)",
-                    yaxis_title="Requests (7d MA)",
-                    height=380,
-                    margin=dict(t=20, b=48, l=48, r=24),
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                )
-                st.plotly_chart(fig_ma, use_container_width=True)
-                st.caption(
-                    "Moving average uses `rolling(window=7, min_periods=1)`: the first days average over "
-                    "however many daily points exist up to seven."
-                )
+            fig_ma = px.line(
+                _daily,
+                x="day",
+                y="requests_ma7",
+                title=None,
+            )
+            fig_ma.update_traces(line=dict(color="#2563eb", width=2))
+            fig_ma.update_layout(
+                showlegend=False,
+                xaxis_title="Date (UTC)",
+                yaxis_title="Requests (7d MA)",
+                height=380,
+                margin=dict(t=20, b=48, l=48, r=24),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(fig_ma, use_container_width=True)
+            st.caption(
+                "Moving average uses `rolling(window=7, min_periods=1)`: the first days average over "
+                "however many daily points exist up to seven."
+            )
 
     with ts_right:
         st.markdown("### Cumulative User Growth")
-        if "created_at" not in df_users_unique.columns:
+        if traffic_start is None:
+            st.info("Need traffic data first to align the start date.")
+        elif "created_at" not in df_users_unique.columns:
             st.info("Missing `created_at` in users data.")
         else:
             _uu = df_users_unique.dropna(subset=["created_at"]).copy()
             _uu["day"] = pd.to_datetime(_uu["created_at"], utc=True, errors="coerce").dt.normalize()
             _uu = _uu.dropna(subset=["day"])
+            if _uu["day"].dt.tz is None:
+                _uu["day"] = _uu["day"].dt.tz_localize("UTC")
             if _uu.empty:
                 st.info("No valid signup dates for cumulative growth.")
             else:
-                _growth = (
-                    _uu.groupby("day").size().reset_index(name="new_users").sort_values("day").reset_index(drop=True)
-                )
-                _growth["cumulative_users"] = _growth["new_users"].cumsum()
+                traffic_end = pd.Timestamp(_daily["day"].iloc[-1])
+                if traffic_end.tzinfo is None:
+                    traffic_end = traffic_end.tz_localize("UTC")
+                user_last = pd.Timestamp(_uu["day"].max())
+                if user_last.tzinfo is None:
+                    user_last = user_last.tz_localize("UTC")
+                day_end = max(traffic_end, user_last)
+
+                users_before_traffic = int((_uu["day"] < traffic_start).sum())
+                all_days = pd.date_range(traffic_start, day_end, freq="D", tz="UTC")
+                new_by_day = _uu.groupby("day").size().reindex(all_days, fill_value=0)
+                new_by_day.index.name = "day"
+                _growth = new_by_day.reset_index(name="new_users")
+                _growth["cumulative_users"] = users_before_traffic + _growth["new_users"].cumsum()
+
                 fig_cum = px.area(
                     _growth,
                     x="day",
@@ -347,6 +369,9 @@ if page == "Overview":
                     plot_bgcolor="rgba(0,0,0,0)",
                 )
                 st.plotly_chart(fig_cum, use_container_width=True)
+                st.caption(
+                    "Series starts on the **first day with traffic**; the level includes users who signed up **before** that day."
+                )
 
 # -----------------------------------------------------------------------------
 # Product Analysis
