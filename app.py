@@ -158,11 +158,6 @@ if page == "Overview":
     paying_users_count = int(paying_mask.sum())
     free_users_count = int(total_users - paying_users_count)
 
-    if "request_count" in df_hourly.columns:
-        total_requests_platform = int(df_hourly["request_count"].sum())
-    else:
-        total_requests_platform = len(df_hourly)
-
     if "request_type" in df_hourly.columns and "request_count" in df_hourly.columns:
         endpoint_dist = df_hourly.groupby(df_hourly["request_type"].fillna("(unknown)").astype(str))["request_count"].sum()
     else:
@@ -174,8 +169,6 @@ if page == "Overview":
     st.markdown(
         "*A high-level view of user monetization and platform traffic distribution.*"
     )
-
-    paying_pct = (100.0 * paying_users_count / total_users) if total_users else 0.0
 
     st.metric("Total Users", f"{total_users:,}")
 
@@ -247,16 +240,6 @@ if page == "Overview":
                 showlegend=False,
             )
             st.plotly_chart(fig_bar, use_container_width=True)
-
-    research_req = float(endpoint_dist.get("research", 0)) if not endpoint_dist.empty else 0.0
-    research_share = (100.0 * research_req / total_requests_platform) if total_requests_platform else 0.0
-
-    st.info(
-        f"**Strategic insight:** While the platform handles large volume (mostly **query**), monetization "
-        f"relies on about **{paying_pct:.1f}%** paying users. The **research** endpoint is only "
-        f"**~{research_share:.2f}%** of total traffic in this sample, yet its high resource use "
-        f"warrants careful unit economics — see **Product Analysis**."
-    )
 
     # Daily traffic (shared: left chart + start date to align user growth)
     _daily = pd.DataFrame()
