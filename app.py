@@ -7,9 +7,9 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
-import altair as alt
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 from bokeh.models import ColumnDataSource
 from bokeh.plotting import figure
@@ -213,106 +213,88 @@ if page == "Overview":
             paygo_off = paygo_off.reindex(plans_ordered).fillna(0).astype(int)
             paygo_on = paygo_on.reindex(plans_ordered).fillna(0).astype(int)
 
-            rows: list[dict] = []
+            # --- Sankey: all users → plan → (Non-PAYGO | PAYGO) — link width = user count
+            n_plans = len(plans_ordered)
+            labels: list[str] = [f"All users<br>{n_users:,}"]
+            node_colors: list[str] = ["#475569"]
+
+            plan_idx: dict[str, int] = {}
+            for i, p in enumerate(plans_ordered):
+                off = int(paygo_off.loc[p])
+                on = int(paygo_on.loc[p])
+                tot = off + on
+                idx = len(labels)
+                plan_idx[p] = idx
+                labels.append(f"{p}<br>{tot:,}")
+                node_colors.append("#cbd5e1")
+
+            leaf_idx: dict[tuple[str, str], int] = {}
             for p in plans_ordered:
                 off = int(paygo_off.loc[p])
                 on = int(paygo_on.loc[p])
-                for segment_name, n_u, o in (
-                    ("Non-PAYGO", off, 0),
-                    ("PAYGO on", on, 1),
-                ):
-                    share = (n_u / n_users) if n_users else 0.0
-                    pct_all = 100.0 * share
-                    rows.append(
-                        {
-                            "plan": p,
-                            "segment": segment_name,
-                            "users": n_u,
-                            "share_of_all": share,
-                            "pct_of_all_users": pct_all,
-                            "_ord": o,
-                        }
+                for seg_name, n_u in (("Non-PAYGO", off), ("PAYGO on", on)):
+                    idx = len(labels)
+                    leaf_idx[(p, seg_name)] = idx
+                    pct = (100.0 * n_u / n_users) if n_users else 0.0
+                    labels.append(f"{p} · {seg_name}<br>{n_u:,} ({pct:.2f}%)")
+                    node_colors.append("#94a3b8" if seg_name == "Non-PAYGO" else "#1d4ed8")
+
+            sources: list[int] = []
+            targets: list[int] = []
+            values: list[int] = []
+            link_colors: list[str] = []
+
+            for p in plans_ordered:
+                off = int(paygo_off.loc[p])
+                on = int(paygo_on.loc[p])
+                tot = off + on
+                pi = plan_idx[p]
+                if tot > 0:
+                    sources.append(0)
+                    targets.append(pi)
+                    values.append(tot)
+                    link_colors.append("rgba(148, 163, 184, 0.35)")
+                if off > 0:
+                    sources.append(pi)
+                    targets.append(leaf_idx[(p, "Non-PAYGO")])
+                    values.append(off)
+                    link_colors.append("rgba(148, 163, 184, 0.45)")
+                if on > 0:
+                    sources.append(pi)
+                    targets.append(leaf_idx[(p, "PAYGO on")])
+                    values.append(on)
+                    link_colors.append("rgba(29, 78, 216, 0.45)")
+
+            sankey = go.Figure(
+                data=[
+                    go.Sankey(
+                        arrangement="snap",
+                        node=dict(
+                            pad=18,
+                            thickness=22,
+                            line=dict(color="rgba(0,0,0,0.35)", width=0.5),
+                            label=labels,
+                            color=node_colors,
+                        ),
+                        link=dict(
+                            source=sources,
+                            target=targets,
+                            value=values,
+                            color=link_colors,
+                        ),
                     )
-            df_long = pd.DataFrame(rows)
-
-            color_enc = alt.Color(
-                "segment:N",
-                title="",
-                scale=alt.Scale(
-                    domain=["Non-PAYGO", "PAYGO on"],
-                    range=["#94a3b8", "#1d4ed8"],
-                ),
+                ]
             )
-
-            # Small multiples: each plan gets a full-height bar so PAYGO mix is readable for tiny plans too
-            n_plans = len(plans_ordered)
-            facet_cols = min(5, max(1, n_plans))
-            mix_chart = (
-                alt.Chart(df_long)
-                .mark_bar()
-                .encode(
-                    x=alt.X(
-                        "segment:N",
-                        title=None,
-                        sort=["Non-PAYGO", "PAYGO on"],
-                        axis=alt.Axis(labelLimit=200),
-                    ),
-                    y=alt.Y(
-                        "users:Q",
-                        title="% within plan",
-                        stack="normalize",
-                        axis=alt.Axis(format=".0%"),
-                    ),
-                    color=color_enc,
-                    order=alt.Order("_ord:O"),
-                    tooltip=[
-                        alt.Tooltip("plan:N", title="Plan"),
-                        alt.Tooltip("segment:N", title="Segment"),
-                        alt.Tooltip("users:Q", title="Users", format=",.0f"),
-                        alt.Tooltip("pct_of_all_users:Q", title="% of all users", format=".2f"),
-                    ],
-                )
-                .properties(width=72, height=200)
-                .facet(
-                    alt.Facet(
-                        "plan:N",
-                        title=None,
-                        sort=plans_ordered,
-                        header=alt.Header(labelOrient="bottom", labelPadding=4),
-                    ),
-                    columns=facet_cols,
-                )
+            sankey.update_layout(
+                title_text="Users by plan and PAYGO (flow width = user count)",
+                font=dict(size=12),
+                height=max(520, min(900, 140 + n_plans * 90)),
+                margin=dict(l=20, r=20, t=50, b=20),
             )
-
-            st.markdown("**PAYGO vs non-PAYGO** — one panel per plan (each bar is **100%** of users on that plan).")
-            st.altair_chart(mix_chart, use_container_width=True)
-
-            # Log-scaled totals: small plans visible next to dominant researcher plan
-            st.markdown("**Users per plan** — horizontal bars, **log** x-axis.")
-            seg_size = seg[["plan", "users"]].copy()
-            seg_size["users_plot"] = seg_size["users"].clip(lower=1)
-            size_chart = (
-                alt.Chart(seg_size)
-                .mark_bar()
-                .encode(
-                    y=alt.Y("plan:N", sort="-x", title=None),
-                    x=alt.X(
-                        "users_plot:Q",
-                        title="Users (log scale)",
-                        scale=alt.Scale(type="log", nice=False),
-                    ),
-                    tooltip=[
-                        alt.Tooltip("plan:N", title="Plan"),
-                        alt.Tooltip("users:Q", title="Users", format=",.0f"),
-                    ],
-                )
-                .properties(height=max(100, min(520, 28 * len(seg_size))))
-            )
-            st.altair_chart(size_chart, use_container_width=True)
-
+            st.plotly_chart(sankey, use_container_width=True)
             st.caption(
-                "Use the **faceted** chart to compare PAYGO mix when one plan dominates counts. "
-                "Use the **log** bar chart to compare absolute plan sizes."
+                "Sankey-style flow: **All users** split by **plan**, then each plan splits into **Non-PAYGO** vs **PAYGO**. "
+                "Narrow flows stay visible next to large ones (unlike a single stacked bar)."
             )
 
 # -----------------------------------------------------------------------------

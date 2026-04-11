@@ -2,4 +2,4 @@ streamlit
 pandas
 numpy
 bokeh
-altair>=5.0
+plotly>=5.18
