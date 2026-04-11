@@ -217,19 +217,18 @@ if page == "Overview":
             for p in plans_ordered:
                 off = int(paygo_off.loc[p])
                 on = int(paygo_on.loc[p])
-                plan_total = off + on
                 for seg, n_u, o in (
                     ("Non-PAYGO", off, 0),
                     ("PAYGO on", on, 1),
                 ):
-                    pct_plan = (100.0 * n_u / plan_total) if plan_total else 0.0
-                    pct_all = (100.0 * n_u / n_users) if n_users else 0.0
+                    share = (n_u / n_users) if n_users else 0.0
+                    pct_all = 100.0 * share
                     rows.append(
                         {
                             "plan": p,
                             "segment": seg,
                             "users": n_u,
-                            "pct_within_plan": pct_plan,
+                            "share_of_all": share,
                             "pct_of_all_users": pct_all,
                             "_ord": o,
                         }
@@ -242,10 +241,10 @@ if page == "Overview":
                 .encode(
                     x=alt.X("plan:N", title="Plan", sort=plans_ordered),
                     y=alt.Y(
-                        "users:Q",
-                        title="Share of users on this plan",
-                        stack="normalize",
-                        axis=alt.Axis(format=".0%"),
+                        "share_of_all:Q",
+                        title="Share of all users",
+                        stack="zero",
+                        axis=alt.Axis(format=".1%"),
                     ),
                     color=alt.Color(
                         "segment:N",
@@ -261,26 +260,21 @@ if page == "Overview":
                         alt.Tooltip("segment:N", title="Segment"),
                         alt.Tooltip("users:Q", title="Users", format=",.0f"),
                         alt.Tooltip(
-                            "pct_within_plan:Q",
-                            title="% of this plan",
-                            format=".1f",
-                        ),
-                        alt.Tooltip(
                             "pct_of_all_users:Q",
                             title="% of all users",
-                            format=".1f",
+                            format=".2f",
                         ),
                     ],
                 )
                 .properties(
                     height=420,
-                    title="Users by plan — PAYGO mix (% within each plan; hover for counts)",
+                    title="Users by plan — share of all users (stacked PAYGO vs non-PAYGO)",
                 )
             )
             st.altair_chart(chart_plan, use_container_width=True)
             st.caption(
-                "Vertical axis: each bar is **100%** of users on that plan. "
-                "Hover a segment for **user count**, **% of that plan**, and **% of all users**."
+                "Each segment’s height is that group’s **% of all unique users**; "
+                "full bar height is **everyone on that plan**. Hover for counts and exact %."
             )
 
 # -----------------------------------------------------------------------------
