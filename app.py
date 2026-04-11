@@ -205,16 +205,20 @@ if page == "Overview":
     )
 
     research_first_users = _count_post_launch_first_research_users(df_users_unique, df_hourly)
+    pct_research_first = (
+        (100.0 * research_first_users / total_users) if total_users else 0.0
+    )
     st.metric(
         "Total Users",
         f"{total_users:,}",
-        delta=f"{research_first_users:,}",
-        delta_color="off",
-    )
-    st.caption(
-        f"**Delta:** users who signed up on or after **{RESEARCH_API_LAUNCH_UTC.date().isoformat()}** (Research API launch, UTC) "
-        "and whose **first** hourly usage row in this dataset (earliest timestamp; if several rows tie that hour, the first after sorting) "
-        "is a **Research** request. Post-launch signups with no hourly rows here are excluded."
+        delta=f"+{pct_research_first:.2f}%",
+        delta_color="normal",
+        help=(
+            f"Share of total users: {research_first_users:,} users signed up on or after "
+            f"{RESEARCH_API_LAUNCH_UTC.date().isoformat()} (Research API launch, UTC) whose first hourly "
+            "usage row in this dataset is Research (earliest timestamp; if several rows share that hour, "
+            "the first after sorting wins). Post-launch signups with no hourly rows here are excluded."
+        ),
     )
 
     free_pct_users = (100.0 * free_users_count / total_users) if total_users else 0.0
