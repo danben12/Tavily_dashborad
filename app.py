@@ -214,10 +214,9 @@ if page == "Overview":
         delta=f"+{pct_research_first:.2f}%",
         delta_color="normal",
         help=(
-            f"Share of total users: {research_first_users:,} users signed up on or after "
-            f"{RESEARCH_API_LAUNCH_UTC.date().isoformat()} (Research API launch, UTC) whose first hourly "
-            "usage row in this dataset is Research (earliest timestamp; if several rows share that hour, "
-            "the first after sorting wins). Post-launch signups with no hourly rows here are excluded."
+            f"Users signed up after {RESEARCH_API_LAUNCH_UTC.day}/{RESEARCH_API_LAUNCH_UTC.month}/"
+            f"{RESEARCH_API_LAUNCH_UTC.year} (Research API launched) who used Research as their "
+            "first request in hourly usage (UTC)."
         ),
     )
 
