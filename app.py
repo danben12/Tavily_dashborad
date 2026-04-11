@@ -217,7 +217,7 @@ if page == "Overview":
             for p in plans_ordered:
                 off = int(paygo_off.loc[p])
                 on = int(paygo_on.loc[p])
-                for seg, n_u, o in (
+                for segment_name, n_u, o in (
                     ("Non-PAYGO", off, 0),
                     ("PAYGO on", on, 1),
                 ):
@@ -226,7 +226,7 @@ if page == "Overview":
                     rows.append(
                         {
                             "plan": p,
-                            "segment": seg,
+                            "segment": segment_name,
                             "users": n_u,
                             "share_of_all": share,
                             "pct_of_all_users": pct_all,
@@ -235,46 +235,84 @@ if page == "Overview":
                     )
             df_long = pd.DataFrame(rows)
 
-            chart_plan = (
+            color_enc = alt.Color(
+                "segment:N",
+                title="",
+                scale=alt.Scale(
+                    domain=["Non-PAYGO", "PAYGO on"],
+                    range=["#94a3b8", "#1d4ed8"],
+                ),
+            )
+
+            # Small multiples: each plan gets a full-height bar so PAYGO mix is readable for tiny plans too
+            n_plans = len(plans_ordered)
+            facet_cols = min(5, max(1, n_plans))
+            mix_chart = (
                 alt.Chart(df_long)
                 .mark_bar()
                 .encode(
-                    x=alt.X("plan:N", title="Plan", sort=plans_ordered),
-                    y=alt.Y(
-                        "share_of_all:Q",
-                        title="Share of all users",
-                        stack="zero",
-                        axis=alt.Axis(format=".1%"),
-                    ),
-                    color=alt.Color(
+                    x=alt.X(
                         "segment:N",
-                        title="",
-                        scale=alt.Scale(
-                            domain=["Non-PAYGO", "PAYGO on"],
-                            range=["#94a3b8", "#1d4ed8"],
-                        ),
+                        title=None,
+                        sort=["Non-PAYGO", "PAYGO on"],
+                        axis=alt.Axis(labelLimit=200),
                     ),
+                    y=alt.Y(
+                        "users:Q",
+                        title="% within plan",
+                        stack="normalize",
+                        axis=alt.Axis(format=".0%"),
+                    ),
+                    color=color_enc,
                     order=alt.Order("_ord:O"),
                     tooltip=[
                         alt.Tooltip("plan:N", title="Plan"),
                         alt.Tooltip("segment:N", title="Segment"),
                         alt.Tooltip("users:Q", title="Users", format=",.0f"),
-                        alt.Tooltip(
-                            "pct_of_all_users:Q",
-                            title="% of all users",
-                            format=".2f",
-                        ),
+                        alt.Tooltip("pct_of_all_users:Q", title="% of all users", format=".2f"),
                     ],
                 )
-                .properties(
-                    height=420,
-                    title="Users by plan — share of all users (stacked PAYGO vs non-PAYGO)",
+                .properties(width=72, height=200)
+                .facet(
+                    alt.Facet(
+                        "plan:N",
+                        title=None,
+                        sort=plans_ordered,
+                        header=alt.Header(labelOrient="bottom", labelPadding=4),
+                    ),
+                    columns=facet_cols,
                 )
             )
-            st.altair_chart(chart_plan, use_container_width=True)
+
+            st.markdown("**PAYGO vs non-PAYGO** — one panel per plan (each bar is **100%** of users on that plan).")
+            st.altair_chart(mix_chart, use_container_width=True)
+
+            # Log-scaled totals: small plans visible next to dominant researcher plan
+            st.markdown("**Users per plan** — horizontal bars, **log** x-axis.")
+            seg_size = seg[["plan", "users"]].copy()
+            seg_size["users_plot"] = seg_size["users"].clip(lower=1)
+            size_chart = (
+                alt.Chart(seg_size)
+                .mark_bar()
+                .encode(
+                    y=alt.Y("plan:N", sort="-x", title=None),
+                    x=alt.X(
+                        "users_plot:Q",
+                        title="Users (log scale)",
+                        scale=alt.Scale(type="log", nice=False),
+                    ),
+                    tooltip=[
+                        alt.Tooltip("plan:N", title="Plan"),
+                        alt.Tooltip("users:Q", title="Users", format=",.0f"),
+                    ],
+                )
+                .properties(height=max(100, min(520, 28 * len(seg_size))))
+            )
+            st.altair_chart(size_chart, use_container_width=True)
+
             st.caption(
-                "Each segment’s height is that group’s **% of all unique users**; "
-                "full bar height is **everyone on that plan**. Hover for counts and exact %."
+                "Use the **faceted** chart to compare PAYGO mix when one plan dominates counts. "
+                "Use the **log** bar chart to compare absolute plan sizes."
             )
 
 # -----------------------------------------------------------------------------
