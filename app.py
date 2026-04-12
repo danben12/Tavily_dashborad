@@ -729,7 +729,7 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
             ),
             go.Bar(
                 name="Request cost - mini",
-                legendgroup="model",
+                legendgroup="mini",
                 x=x_plans,
                 y=mini_plot,
                 base=base_bf,
@@ -738,7 +738,7 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
             ),
             go.Bar(
                 name="Request cost - pro",
-                legendgroup="model",
+                legendgroup="pro",
                 x=x_plans,
                 y=pro_plot,
                 base=base_bf,
@@ -750,7 +750,7 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
             _bars.append(
                 go.Bar(
                     name="Request cost - other models",
-                    legendgroup="model",
+                    legendgroup="other_models",
                     x=x_plans,
                     y=other_plot,
                     base=base_bf,
