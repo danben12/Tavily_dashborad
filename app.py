@@ -203,6 +203,13 @@ def _count_research_api_users(hourly: pd.DataFrame) -> int:
     return int((by_u > 0).sum())
 
 
+def _count_distinct_user_ids_hourly(hourly: pd.DataFrame) -> int:
+    """Distinct ``user_id`` appearing anywhere in hourly usage (any request type)."""
+    if hourly.empty or "user_id" not in hourly.columns:
+        return 0
+    return int(hourly.dropna(subset=["user_id"])["user_id"].astype(int).nunique())
+
+
 def _research_requests_pareto_df(hourly: pd.DataFrame, n_tiers: int = 10) -> pd.DataFrame | None:
     """Pareto table: users ranked by total research ``request_count``, then bucketed for display.
 
@@ -290,6 +297,7 @@ elif page == "Product Analysis":
     )
 
     total_users = int(df_users_unique["user_id"].nunique())
+    n_hourly_users = _count_distinct_user_ids_hourly(df_hourly)
     n_research_api_users = _count_research_api_users(df_hourly)
     paying_mask = _is_paying_user_row(df_users_unique)
     paying_users_count = int(paying_mask.sum())
@@ -303,38 +311,27 @@ elif page == "Product Analysis":
         endpoint_dist = pd.Series(dtype=float)
 
     research_first_users = _count_post_launch_first_research_users(df_users_unique, df_hourly)
-    if n_research_api_users == total_users:
-        metric_label = "Total Users"
-        metric_users = total_users
-        metric_help_extra = ""
-    else:
-        metric_label = "Research API users"
-        metric_users = n_research_api_users
-        d = n_research_api_users - total_users
-        if d > 0:
-            metric_help_extra = (
-                f" From **hourly_usage**: distinct users with research requests. "
-                f"**{d}** more than distinct `user_id` in `users.csv` ({total_users:,})."
-            )
-        else:
-            metric_help_extra = (
-                f" From **hourly_usage**: distinct users with research requests. "
-                f"`users.csv` has **{-d}** users without positive research volume here."
-            )
     pct_research_first = (
-        (100.0 * research_first_users / metric_users) if metric_users else 0.0
+        (100.0 * research_first_users / n_research_api_users) if n_research_api_users else 0.0
     )
     st.metric(
-        metric_label,
-        f"{metric_users:,}",
+        "Research API users",
+        f"{n_research_api_users:,}",
         delta=f"+{pct_research_first:.2f}%",
         delta_color="normal",
         help=(
-            f"Users signed up after {RESEARCH_API_LAUNCH_UTC.day}/{RESEARCH_API_LAUNCH_UTC.month}/"
-            f"{RESEARCH_API_LAUNCH_UTC.year} (Research API launched) who used Research as their "
-            f"first request in hourly usage (UTC). Delta = that count as % of **{metric_label.lower()}**."
-            + metric_help_extra
+            f"Distinct `user_id` with positive research `request_count` in **hourly_usage**. "
+            f"Delta: users who signed up on or after {RESEARCH_API_LAUNCH_UTC.day}/"
+            f"{RESEARCH_API_LAUNCH_UTC.month}/{RESEARCH_API_LAUNCH_UTC.year} (Research launch, UTC) "
+            "whose **first** hourly row is Research, as % of this count. "
+            "See the caption below for `users.csv` vs full hourly user coverage."
         ),
+    )
+    st.caption(
+        f"**User coverage (this extract):** `users.csv` **{total_users:,}** distinct ids • "
+        f"`hourly_usage` **{n_hourly_users:,}** distinct ids (any request type) • "
+        f"**Research** (positive volume) **{n_research_api_users:,}**. "
+        "Mismatches are normal if extracts differ in time, scope, or deleted/churned accounts."
     )
 
     free_pct_users = (100.0 * free_users_count / total_users) if total_users else 0.0
