@@ -327,6 +327,46 @@ if page == "Product Analysis":
             help="Sum of `request_cost` across all rows in research_requests (this extract).",
         )
 
+    st.markdown("### Research API: unique users per day")
+    st.caption(
+        "Count of **distinct user_id** with at least one research request on each calendar day (UTC). "
+        "Multiple requests the same day still count as one user."
+    )
+    if not {"user_id", "timestamp"}.issubset(df_research.columns):
+        st.info("research_requests is missing `user_id` or `timestamp` for this chart.")
+    else:
+        _rdu = df_research.dropna(subset=["user_id", "timestamp"]).copy()
+        _rdu["user_id"] = _rdu["user_id"].astype(int)
+        _rdu["_day"] = pd.to_datetime(_rdu["timestamp"], utc=True, errors="coerce").dt.normalize()
+        _rdu["_day"] = _rdu["_day"].dt.tz_localize(None)
+        _rdu = _rdu.dropna(subset=["_day"])
+        if _rdu.empty:
+            st.info("No valid timestamps in research_requests for this chart.")
+        else:
+            _daily_u = _rdu.groupby("_day", observed=True)["user_id"].nunique().sort_index()
+            fig_dau = go.Figure(
+                go.Scatter(
+                    x=_daily_u.index,
+                    y=_daily_u.values,
+                    mode="lines",
+                    line=dict(color="#38bdf8", width=2.2),
+                    fill="tozeroy",
+                    fillcolor="rgba(56, 189, 248, 0.18)",
+                    name="Unique users",
+                    hovertemplate="%{x|%Y-%m-%d}<br>%{y:,} users<extra></extra>",
+                )
+            )
+            fig_dau.update_layout(
+                xaxis_title="Date (UTC)",
+                yaxis_title="Unique users",
+                height=380,
+                margin=dict(t=24, b=48, l=56, r=24),
+                showlegend=False,
+                xaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
+                yaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
+            )
+            st.plotly_chart(fig_dau, use_container_width=True)
+
     _cohort_set_prod = set(
         int(x) for x in _research_cohort_user_ids(df_research).tolist()
     )
