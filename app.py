@@ -265,7 +265,8 @@ PLAN_MONTHLY_USD: dict[str, float] = {
 
 
 def _plan_norm(series: pd.Series) -> pd.Series:
-    return series.astype(str).str.lower().str.strip()
+    s = series.astype(str).str.lower().str.strip()
+    return s.replace({"": "unknown", "nan": "unknown", "none": "unknown", "0": "unknown"})
 
 
 def _period_end_utc(period: pd.Period) -> pd.Timestamp:
@@ -390,6 +391,7 @@ def compute_plan_cost_and_revenue(
         "startup",
         "growth",
         "enterprise",
+        "unknown",
     ]
     raw_plans = set(cost_by.index.astype(str)) | set(sub_by.index.astype(str)) | set(paygo_by.index.astype(str))
     plans = [p for p in _tier_order if p in raw_plans] + sorted(p for p in raw_plans if p not in _tier_order)
@@ -586,18 +588,25 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
 
     plan_df = compute_plan_cost_and_revenue(req_df, users_unique)
     if not plan_df.empty:
+        cost_y = plan_df["total_cost"].astype(float).to_numpy()
+        rev_y = plan_df["total_revenue"].astype(float).to_numpy()
+        cost_plot = np.where(cost_y > 0, cost_y, np.nan)
+        rev_plot = np.where(rev_y > 0, rev_y, np.nan)
+        _pos_p = np.concatenate([cost_y[cost_y > 0], rev_y[rev_y > 0]])
+        tick_p, text_p = _log_yaxis_money_ticks(_pos_p if _pos_p.size else np.array([1.0], dtype=float))
+
         fig_plan = go.Figure(
             data=[
                 go.Bar(
                     name="Request cost",
                     x=plan_df["plan"],
-                    y=plan_df["total_cost"],
+                    y=cost_plot,
                     marker_color="#C62828",
                 ),
                 go.Bar(
                     name="Total revenue",
                     x=plan_df["plan"],
-                    y=plan_df["total_revenue"],
+                    y=rev_plot,
                     marker_color="#2E7D32",
                 ),
             ]
@@ -608,11 +617,22 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
             height=460,
             margin=dict(t=40, b=40),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            yaxis_tickformat=",.0f",
-            yaxis_title="USD (nominal)",
             xaxis_title="User plan",
+            yaxis_title="USD (log scale, K / M)",
         )
-        fig_plan.update_yaxes(tickprefix="$")
+        _sp = np.concatenate([cost_plot, rev_plot])
+        _fin_p = _sp[np.isfinite(_sp) & (_sp > 0)]
+        if _fin_p.size:
+            p_lo, p_hi = float(_fin_p.min()), float(_fin_p.max())
+        else:
+            p_lo, p_hi = 1.0, 10.0
+        fig_plan.update_yaxes(
+            type="log",
+            tickmode="array",
+            tickvals=tick_p,
+            ticktext=text_p,
+            range=[max(p_lo * 0.5, 1e-6), p_hi * 2.5],
+        )
         st.plotly_chart(fig_plan, use_container_width=True)
 
     leak = compute_strictly_free_leakage(req_df, users_unique)
