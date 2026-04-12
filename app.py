@@ -303,6 +303,26 @@ def _plan_norm(series: pd.Series) -> pd.Series:
     return series.map(_plan_norm_value)
 
 
+# Split ``researcher`` into free vs PayGo for plan-level economics charts.
+PLAN_BUCKET_FREE = "Simple free tier"
+PLAN_BUCKET_RESEARCHER_PAYGO = "Researcher with PayGo"
+
+
+def _plan_bucket_series(plan_norm: pd.Series, has_paygo: pd.Series) -> pd.Series:
+    pn = plan_norm.astype(str).str.lower().str.strip()
+    pg = has_paygo.fillna(False).astype(bool)
+    b = np.where(
+        pn.eq("researcher").to_numpy() & ~pg.to_numpy(),
+        PLAN_BUCKET_FREE,
+        np.where(
+            pn.eq("researcher").to_numpy() & pg.to_numpy(),
+            PLAN_BUCKET_RESEARCHER_PAYGO,
+            pn.astype(str).to_numpy(),
+        ),
+    )
+    return pd.Series(b, index=plan_norm.index, dtype=object)
+
+
 def _period_end_utc(period: pd.Period) -> pd.Timestamp:
     ts = period.to_timestamp(how="end")
     if ts.tzinfo is None:
@@ -402,10 +422,13 @@ def compute_plan_cost_and_revenue(
     u["created_at"] = pd.to_datetime(u["created_at"], utc=True, errors="coerce")
 
     merged_all = r.merge(u, on="user_id", how="inner", suffixes=("", "_usr"))
-    cost_by = merged_all.groupby("plan_norm", observed=True)["request_cost"].sum()
+    merged_all["plan_bucket"] = _plan_bucket_series(merged_all["plan_norm"], merged_all["has_paygo"])
+    cost_by = merged_all.groupby("plan_bucket", observed=True)["request_cost"].sum()
 
     paygo_m = merged_all.loc[merged_all["has_paygo"].fillna(False).astype(bool)]
-    paygo_by = paygo_m.groupby("plan_norm", observed=True)["credits_used"].sum() * PAYGO_USD_PER_CREDIT
+    paygo_by = paygo_m.groupby("plan_bucket", observed=True)["credits_used"].sum() * PAYGO_USD_PER_CREDIT
+
+    u = u.assign(plan_bucket=_plan_bucket_series(u["plan_norm"], u["has_paygo"]))
 
     sub_by = pd.Series(0.0, dtype=float)
     if not monthly.empty:
@@ -415,11 +438,12 @@ def compute_plan_cost_and_revenue(
             active = active.assign(
                 _price=active["plan_norm"].map(PLAN_MONTHLY_USD).fillna(0.0).astype(float)
             )
-            part = active.groupby("plan_norm", observed=True)["_price"].sum()
+            part = active.groupby("plan_bucket", observed=True)["_price"].sum()
             sub_by = sub_by.add(part, fill_value=0.0)
 
     _tier_order = [
-        "researcher",
+        PLAN_BUCKET_FREE,
+        PLAN_BUCKET_RESEARCHER_PAYGO,
         "project",
         "bootstrap",
         "startup",
@@ -437,7 +461,6 @@ def compute_plan_cost_and_revenue(
             "paygo_revenue": [float(paygo_by.get(p, 0.0)) for p in plans],
         }
     )
-    out["plan"] = out["plan"].map(_plan_norm_value)
     out = out.groupby("plan", as_index=False, sort=False).agg(
         total_cost=("total_cost", "sum"),
         subscription_revenue=("subscription_revenue", "sum"),
@@ -628,9 +651,9 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
 
     st.subheader("Resource allocation and cost controls")
     st.markdown(
-        "Compare cumulative **request cost** to modeled revenue **by billing plan**. "
-        "Subscription revenue here is the sum of monthly plan fees for users active through each month; "
-        "PayGo is allocated to the user’s plan bucket."
+        "Compare cumulative **request cost** to modeled revenue **by billing segment**. "
+        "**Simple free tier** is `plan == researcher` with `has_paygo == False`; **Researcher with PayGo** is the same plan with PayGo enabled. "
+        "Subscription revenue is the sum of monthly list prices for users active through each month; PayGo is allocated to the user’s segment."
     )
 
     plan_df = compute_plan_cost_and_revenue(req_df, users_unique)
@@ -659,18 +682,18 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         fig_plan = go.Figure(
             data=[
                 go.Bar(
-                    name="Request cost",
-                    x=x_plans,
-                    y=cost_plot,
-                    base=_plan_bar_base,
-                    marker_color="#C62828",
-                ),
-                go.Bar(
                     name="Total revenue",
                     x=x_plans,
                     y=rev_plot,
                     base=_plan_bar_base,
-                    marker_color="#2E7D32",
+                    marker_color="#42A5F5",
+                ),
+                go.Bar(
+                    name="Total request cost",
+                    x=x_plans,
+                    y=cost_plot,
+                    base=_plan_bar_base,
+                    marker_color="#EF5350",
                 ),
             ]
         )
@@ -680,8 +703,13 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
             height=460,
             margin=dict(t=40, b=40),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            xaxis=dict(type="category", title="User plan"),
-            yaxis_title="USD (log scale, K / M)",
+            xaxis=dict(
+                type="category",
+                title="User plan",
+                categoryorder="array",
+                categoryarray=x_plans.tolist(),
+            ),
+            yaxis_title="USD (cost/revenue)",
         )
         fig_plan.update_yaxes(
             type="log",
