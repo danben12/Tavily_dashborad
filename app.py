@@ -129,22 +129,25 @@ else:
     df_users_unique = _u.drop_duplicates(subset=["user_id"])
 
 
-def _count_research_first_hourly_after_first_research_ts(
+def _research_first_after_launch_metrics(
     users_unique: pd.DataFrame,
     hourly: pd.DataFrame,
     research: pd.DataFrame,
-) -> int:
-    """Users with created_at after the earliest research_requests timestamp whose first hourly row is Research."""
+) -> tuple[int, int]:
+    """Return (count whose first hourly row is Research, count joined after first research timestamp).
+
+    Launch anchor = earliest ``timestamp`` in ``research_requests``. Cohort = ``created_at`` strictly after that.
+    """
     if research.empty or "timestamp" not in research.columns:
-        return 0
+        return (0, 0)
     if not {"user_id", "created_at"}.issubset(users_unique.columns):
-        return 0
+        return (0, 0)
     if not {"user_id", "hour", "request_type"}.issubset(hourly.columns):
-        return 0
+        return (0, 0)
 
     first_rs = research["timestamp"].dropna().min()
     if pd.isna(first_rs):
-        return 0
+        return (0, 0)
     first_rs = pd.Timestamp(first_rs)
     if first_rs.tzinfo is None:
         first_rs = first_rs.tz_localize("UTC")
@@ -155,18 +158,19 @@ def _count_research_first_hourly_after_first_research_ts(
     u["user_id"] = u["user_id"].astype(int)
     created = pd.to_datetime(u["created_at"], utc=True, errors="coerce")
     cohort = u.loc[created.notna() & (created > first_rs), "user_id"].unique()
-    if len(cohort) == 0:
-        return 0
+    n_joined_after = int(len(cohort))
+    if n_joined_after == 0:
+        return (0, 0)
 
     h = hourly.dropna(subset=["hour", "user_id"]).copy()
     h["user_id"] = h["user_id"].astype(int)
     h = h[h["user_id"].isin(cohort)]
     if h.empty:
-        return 0
+        return (0, n_joined_after)
     h = h.sort_values("hour")
     first = h.groupby("user_id", sort=False).first()
     rt = first["request_type"].fillna("").astype(str).str.lower().str.strip()
-    return int((rt == "research").sum())
+    return (int((rt == "research").sum()), n_joined_after)
 
 
 # -----------------------------------------------------------------------------
@@ -204,8 +208,11 @@ elif page == "Product Analysis":
         )
     else:
         n_research_users_rq = 0
-    n_research_first_cohort = _count_research_first_hourly_after_first_research_ts(
+    n_research_first, n_joined_after_research = _research_first_after_launch_metrics(
         df_users_unique, df_hourly, df_research
+    )
+    pct_of_post_launch = (
+        (100.0 * n_research_first / n_joined_after_research) if n_joined_after_research else 0.0
     )
     m1, m2 = st.columns(2)
     with m1:
@@ -215,14 +222,26 @@ elif page == "Product Analysis":
             help="Distinct user_id in research_requests.csv.",
         )
     with m2:
-        st.metric(
-            "Research-first (joined after first research in extract)",
-            f"{n_research_first_cohort:,}",
-            help=(
-                "Users with created_at **after** the **earliest** timestamp in research_requests.csv; "
-                "among those, count where the **first** hourly_usage row (by hour) has request_type **research**."
-            ),
+        st.markdown(
+            """
+            <style>
+            div[data-testid="stHorizontalBlock"] div[data-testid="column"]:nth-child(2)
+            div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+                color: #15803d !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
         )
+        _delta = f"+{pct_of_post_launch:.1f}%" if n_joined_after_research else None
+        st.metric(
+            "Research-first signups",
+            f"{n_research_first:,}",
+            delta=_delta,
+            delta_color="normal",
+            help="Delta: % of users who signed up after Research appeared in data (earliest research_requests row).",
+        )
+        st.caption("Joined after Research API launch; first hourly request is Research.")
     st.info(
         "Additional Part 1 sections (questions, hypotheses, KPIs, visuals) will be added here. "
         "Hourly usage and user metadata remain available from `load_data()`."
