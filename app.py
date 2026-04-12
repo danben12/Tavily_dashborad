@@ -7,7 +7,9 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 # -----------------------------------------------------------------------------
@@ -173,6 +175,30 @@ def _research_first_after_launch_metrics(
     return (int((rt == "research").sum()), n_joined_after)
 
 
+def _research_pareto_pct_curve(research: pd.DataFrame, max_points: int = 2500) -> pd.DataFrame | None:
+    """Cumulative % users (by descending request volume) vs cumulative % of research requests.
+
+    One row per request in ``research_requests`` is counted toward that user's volume.
+    """
+    if research.empty or "user_id" not in research.columns:
+        return None
+    r = research.dropna(subset=["user_id"]).copy()
+    r["user_id"] = r["user_id"].astype(int)
+    by_u = r.groupby("user_id", observed=True).size().sort_values(ascending=False)
+    if by_u.empty:
+        return None
+    total_req = int(by_u.sum())
+    n = len(by_u)
+    cum = by_u.cumsum().values.astype(float)
+    pct_users = 100.0 * np.arange(1, n + 1) / n
+    pct_req = 100.0 * cum / total_req
+    out = pd.DataFrame({"pct_users": np.concatenate([[0.0], pct_users]), "pct_requests": np.concatenate([[0.0], pct_req])})
+    if len(out) > max_points:
+        idx = np.unique(np.linspace(0, len(out) - 1, max_points, dtype=int))
+        out = out.iloc[idx].reset_index(drop=True)
+    return out
+
+
 # -----------------------------------------------------------------------------
 # Sidebar
 # -----------------------------------------------------------------------------
@@ -242,6 +268,52 @@ elif page == "Product Analysis":
             help="Delta: % of users who signed up after Research appeared in data (earliest research_requests row).",
         )
         st.caption("Joined after Research API launch; first hourly request is Research.")
+
+    _pareto_pct = _research_pareto_pct_curve(df_research)
+    st.markdown("### Research requests vs users (Pareto)")
+    if _pareto_pct is None or len(_pareto_pct) < 2:
+        st.info("Not enough data in research_requests to plot cumulative % users vs % requests.")
+    else:
+        st.caption(
+            "Users sorted by **number of research requests** (highest first). "
+            "Each point: include the top *x*% of those users → they account for *y*% of all requests in this extract."
+        )
+        fig_par = go.Figure()
+        fig_par.add_trace(
+            go.Scatter(
+                x=_pareto_pct["pct_users"],
+                y=_pareto_pct["pct_requests"],
+                mode="lines",
+                line=dict(color="#ea580c", width=2.5),
+                fill="tozeroy",
+                fillcolor="rgba(234, 88, 12, 0.12)",
+                name="Actual",
+                hovertemplate="Users: %{x:.1f}%<br>Requests: %{y:.1f}%<extra></extra>",
+            )
+        )
+        fig_par.add_trace(
+            go.Scatter(
+                x=[0, 100],
+                y=[0, 100],
+                mode="lines",
+                line=dict(color="#94a3b8", width=1, dash="dash"),
+                name="Equal share",
+                hoverinfo="skip",
+            )
+        )
+        fig_par.update_layout(
+            xaxis_title="Cumulative % of users (by request volume rank)",
+            yaxis_title="Cumulative % of research requests",
+            xaxis=dict(range=[0, 100], dtick=10, ticksuffix="%"),
+            yaxis=dict(range=[0, 100], dtick=10, ticksuffix="%"),
+            height=460,
+            margin=dict(t=32, b=48, l=56, r=24),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(fig_par, use_container_width=True)
+
     st.info(
         "Additional Part 1 sections (questions, hypotheses, KPIs, visuals) will be added here. "
         "Hourly usage and user metadata remain available from `load_data()`."
