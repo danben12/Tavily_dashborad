@@ -263,10 +263,8 @@ if page == "Product Analysis":
     else:
         n_research_users_rq = 0
     st.info(
-        "**Methodological Note:** This dashboard presents a Cohort Analysis of the 16,333 users who interacted "
-        "with the Research API. The data—including traffic volumes in other products—reflects the profile and "
-        "behavior of **Research Users** specifically, and does not represent a macro-view of the entire Tavily "
-        "platform."
+        "**Methodological Note:** This dashboard presents a simple analysis of the 16,333 users who interacted "
+        "with the Research API."
     )
     n_research_first, n_joined_after_research = _research_first_after_launch_metrics(
         df_users_unique, df_hourly, df_research
