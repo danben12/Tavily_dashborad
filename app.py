@@ -101,6 +101,10 @@ def load_data():
     if "has_paygo" in df_users.columns:
         df_users["has_paygo"] = df_users["has_paygo"].astype(str).str.lower().eq("true")
 
+    for c in df_costs.columns:
+        if c != "hour":
+            df_costs[c] = pd.to_numeric(df_costs[c], errors="coerce")
+
     return df_hourly, df_costs, df_research, df_users
 
 
@@ -180,6 +184,24 @@ def _count_post_launch_first_research_users(users_unique: pd.DataFrame, hourly: 
     first = h.groupby("user_id", sort=False).first()
     rt = first["request_type"].fillna("").astype(str).str.lower().str.strip()
     return int((rt == "research").sum())
+
+
+def _monthly_infra_model_spend_usd(costs: pd.DataFrame) -> pd.DataFrame:
+    """Calendar-month totals: sum of all non-`hour` USD columns in infrastructure_costs."""
+    if costs.empty or "hour" not in costs.columns:
+        return pd.DataFrame(columns=["month", "total_usd"])
+    d = costs.dropna(subset=["hour"]).copy()
+    value_cols = [c for c in d.columns if c != "hour"]
+    if not value_cols:
+        return pd.DataFrame(columns=["month", "total_usd"])
+    d["total_usd"] = d[value_cols].fillna(0).sum(axis=1)
+    out = (
+        d.groupby(pd.Grouper(key="hour", freq="MS"), as_index=False)["total_usd"]
+        .sum()
+        .sort_values("hour")
+        .rename(columns={"hour": "month"})
+    )
+    return out
 
 
 # -----------------------------------------------------------------------------
@@ -391,6 +413,34 @@ if page == "Overview":
                 st.caption(
                     "Series starts on the **first day with traffic**; the level includes users who signed up **before** that day."
                 )
+
+    _monthly_spend = _monthly_infra_model_spend_usd(df_costs)
+    st.markdown("### Monthly platform spend (USD)")
+    if _monthly_spend.empty or (_monthly_spend["total_usd"].sum() == 0):
+        st.info("No usable rows in `infrastructure_costs.csv` for a monthly spend series.")
+    else:
+        fig_spend = px.bar(
+            _monthly_spend,
+            x="month",
+            y="total_usd",
+            title=None,
+        )
+        fig_spend.update_traces(marker_color="#6366f1")
+        fig_spend.update_layout(
+            showlegend=False,
+            xaxis_title="Month (UTC, month start)",
+            yaxis_title="Total USD",
+            height=360,
+            margin=dict(t=20, b=48, l=56, r=24),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        fig_spend.update_yaxes(tickformat=",.0f")
+        st.plotly_chart(fig_spend, use_container_width=True)
+        st.caption(
+            "Sum of hourly **infrastructure** and **model** cost columns in the costs extract, rolled up by calendar month. "
+            "This is internal **spend**, not customer **revenue** (the assignment tables do not include MRR or invoices)."
+        )
 
 # -----------------------------------------------------------------------------
 # Product Analysis
