@@ -511,9 +511,11 @@ elif page == "Product Analysis":
             f"{n_research_first:,}",
             delta=_delta,
             delta_color="normal",
-            help="Delta: % of users who signed up after Research appeared in data (earliest research_requests row).",
+            help=(
+                "Joined after Research API launch; first hourly request is Research. "
+                "Delta: % of users who signed up after Research appeared in data (earliest research_requests row)."
+            ),
         )
-        st.caption("Joined after Research API launch; first hourly request is Research.")
     with m3:
         st.metric(
             "Overall research reliability",
