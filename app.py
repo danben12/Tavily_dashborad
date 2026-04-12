@@ -187,6 +187,22 @@ def _count_post_launch_first_research_users(users_unique: pd.DataFrame, hourly: 
     return int((rt == "research").sum())
 
 
+def _count_research_api_users(hourly: pd.DataFrame) -> int:
+    """Distinct ``user_id`` with positive total ``request_count`` on ``request_type`` research."""
+    need = {"user_id", "request_type", "request_count"}
+    if hourly.empty or not need.issubset(hourly.columns):
+        return 0
+    h = hourly.dropna(subset=["user_id"]).copy()
+    h["request_type"] = h["request_type"].fillna("").astype(str).str.lower().str.strip()
+    rh = h[h["request_type"] == "research"]
+    if rh.empty:
+        return 0
+    rh = rh.copy()
+    rh["request_count"] = pd.to_numeric(rh["request_count"], errors="coerce").fillna(0.0)
+    by_u = rh.groupby("user_id")["request_count"].sum()
+    return int((by_u > 0).sum())
+
+
 def _research_requests_pareto_df(hourly: pd.DataFrame, n_tiers: int = 10) -> pd.DataFrame | None:
     """Pareto table: users ranked by total research ``request_count``, then bucketed for display.
 
@@ -274,6 +290,7 @@ elif page == "Product Analysis":
     )
 
     total_users = int(df_users_unique["user_id"].nunique())
+    n_research_api_users = _count_research_api_users(df_hourly)
     paying_mask = _is_paying_user_row(df_users_unique)
     paying_users_count = int(paying_mask.sum())
     free_users_count = int(total_users - paying_users_count)
@@ -286,18 +303,37 @@ elif page == "Product Analysis":
         endpoint_dist = pd.Series(dtype=float)
 
     research_first_users = _count_post_launch_first_research_users(df_users_unique, df_hourly)
+    if n_research_api_users == total_users:
+        metric_label = "Total Users"
+        metric_users = total_users
+        metric_help_extra = ""
+    else:
+        metric_label = "Research API users"
+        metric_users = n_research_api_users
+        d = n_research_api_users - total_users
+        if d > 0:
+            metric_help_extra = (
+                f" From **hourly_usage**: distinct users with research requests. "
+                f"**{d}** more than distinct `user_id` in `users.csv` ({total_users:,})."
+            )
+        else:
+            metric_help_extra = (
+                f" From **hourly_usage**: distinct users with research requests. "
+                f"`users.csv` has **{-d}** users without positive research volume here."
+            )
     pct_research_first = (
-        (100.0 * research_first_users / total_users) if total_users else 0.0
+        (100.0 * research_first_users / metric_users) if metric_users else 0.0
     )
     st.metric(
-        "Total Users",
-        f"{total_users:,}",
+        metric_label,
+        f"{metric_users:,}",
         delta=f"+{pct_research_first:.2f}%",
         delta_color="normal",
         help=(
             f"Users signed up after {RESEARCH_API_LAUNCH_UTC.day}/{RESEARCH_API_LAUNCH_UTC.month}/"
             f"{RESEARCH_API_LAUNCH_UTC.year} (Research API launched) who used Research as their "
-            "first request in hourly usage (UTC)."
+            f"first request in hourly usage (UTC). Delta = that count as % of **{metric_label.lower()}**."
+            + metric_help_extra
         ),
     )
 
@@ -375,11 +411,7 @@ elif page == "Product Analysis":
     if _pareto is None or _pareto.empty:
         st.info("No research `request_type` rows with positive `request_count` for a Pareto chart.")
     else:
-        _hru = df_hourly.dropna(subset=["user_id"]).copy()
-        _hru["_rt"] = _hru["request_type"].fillna("").astype(str).str.lower().str.strip()
-        _hru = _hru[_hru["_rt"] == "research"]
-        _hru["request_count"] = pd.to_numeric(_hru["request_count"], errors="coerce").fillna(0.0)
-        n_research_users = int((_hru.groupby("user_id")["request_count"].sum() > 0).sum())
+        n_research_users = _count_research_api_users(df_hourly)
         st.caption(
             f"Users with at least one research request in this extract: **{n_research_users:,}**. "
             "Bars = research request volume per bucket (users sorted heaviest-first). "
