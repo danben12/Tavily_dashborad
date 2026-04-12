@@ -218,23 +218,24 @@ def _user_monetized_row(plan: object, has_paygo: object) -> bool:
 
 
 def _format_currency_usd(value: float) -> str:
-    """Whole-dollar USD with thousands separators (e.g. ``$1,234,567``)."""
-    if value is None or not np.isfinite(value):
-        return "—"
-    return f"${float(value):,.0f}"
-
-
-def _format_currency_compact(value: float) -> str:
-    """Shorter USD labels for chart annotations (M / K)."""
+    """USD for UI metrics: ``$140K``, ``$9.7M``, ``-$9.6M`` (no long digit strings)."""
     if value is None or not np.isfinite(value):
         return "—"
     v = float(value)
+    neg = v < 0
     a = abs(v)
     if a >= 1_000_000:
-        return f"${v / 1_000_000:,.2f}M"
-    if a >= 10_000:
-        return f"${v / 1_000:,.1f}K"
-    return f"${v:,.0f}"
+        body = f"${a / 1_000_000:.1f}M"
+    elif a >= 1_000:
+        body = f"${a / 1_000:,.0f}K"
+    else:
+        body = f"${a:,.0f}"
+    return f"-{body}" if neg else body
+
+
+def _format_currency_compact(value: float) -> str:
+    """Same scale as ``_format_currency_usd`` (for chart text overlays)."""
+    return _format_currency_usd(value)
 
 
 # Pricing assumptions (monthly subscription list price, USD). No hardcoded revenue totals.
