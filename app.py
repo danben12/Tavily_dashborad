@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 import plotly.io as pio
 import streamlit as st
@@ -457,6 +458,61 @@ if page == "Product Analysis":
             yaxis=dict(showgrid=False),
         )
         st.plotly_chart(fig_bar, use_container_width=True)
+
+    st.markdown("### Product stickiness: active days per user")
+    if not {"user_id", "timestamp"}.issubset(df_research.columns):
+        st.info("research_requests is missing `user_id` or `timestamp` for this chart.")
+    else:
+        _stk = df_research.dropna(subset=["user_id", "timestamp"]).copy()
+        _stk["user_id"] = _stk["user_id"].astype(int)
+        _stk["_date"] = pd.to_datetime(_stk["timestamp"], utc=True, errors="coerce").dt.date
+        _stk = _stk.dropna(subset=["_date"])
+        if _stk.empty:
+            st.info("No valid timestamps in research_requests for this chart.")
+        else:
+            _active_days_per_user = (
+                _stk.groupby("user_id", observed=True)["_date"].nunique().reset_index()
+            )
+            _active_days_per_user.columns = ["user_id", "days_active"]
+            _user_distribution = (
+                _active_days_per_user.groupby("days_active", observed=True)["user_id"]
+                .count()
+                .reset_index()
+            )
+            _user_distribution.columns = ["days_active", "user_count"]
+            _user_distribution = _user_distribution.sort_values("days_active")
+            fig_stick = px.bar(
+                _user_distribution,
+                x="days_active",
+                y="user_count",
+                labels={
+                    "days_active": "Total days used",
+                    "user_count": "Number of users",
+                },
+                color_discrete_sequence=["#38bdf8"],
+            )
+            fig_stick.update_layout(
+                title=dict(
+                    text="Product Stickiness: Distribution of Active Days per User",
+                    x=0.5,
+                    xanchor="center",
+                ),
+                xaxis_title="Total Days Used",
+                yaxis_title="Number of Users",
+                showlegend=False,
+                height=420,
+                margin=dict(t=56, b=48, l=56, r=24),
+                xaxis=dict(type="category", gridcolor="rgba(148,163,184,0.25)"),
+                yaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
+            )
+            fig_stick.update_traces(
+                hovertemplate="Days active: %{x}<br>Users: %{y:,}<extra></extra>",
+            )
+            st.plotly_chart(fig_stick, use_container_width=True)
+            st.caption(
+                "Insight: This distribution highlights product stickiness. A heavy concentration on **1 day** "
+                "indicates users trying the feature once, while the tail represents highly engaged, retained users."
+            )
 
     _pareto_pct = _research_pareto_pct_curve(df_research)
     st.markdown("### Research requests vs users (Pareto)")
