@@ -230,17 +230,42 @@ if page == "Overview":
     pct_research_first = (
         (100.0 * research_first_users / total_users) if total_users else 0.0
     )
-    st.metric(
-        "Total Users",
-        f"{total_users:,}",
-        delta=f"+{pct_research_first:.2f}%",
-        delta_color="normal",
-        help=(
-            f"Users signed up after {RESEARCH_API_LAUNCH_UTC.day}/{RESEARCH_API_LAUNCH_UTC.month}/"
-            f"{RESEARCH_API_LAUNCH_UTC.year} (Research API launched) who used Research as their "
-            "first request in hourly usage (UTC)."
-        ),
-    )
+    _monthly_spend = _monthly_infra_model_spend_usd(df_costs)
+    if not _monthly_spend.empty and _monthly_spend["total_usd"].notna().any():
+        mean_monthly_infra_usd = float(_monthly_spend["total_usd"].mean())
+    else:
+        mean_monthly_infra_usd = None
+
+    m_users, m_infra = st.columns(2)
+    with m_users:
+        st.metric(
+            "Total Users",
+            f"{total_users:,}",
+            delta=f"+{pct_research_first:.2f}%",
+            delta_color="normal",
+            help=(
+                f"Users signed up after {RESEARCH_API_LAUNCH_UTC.day}/{RESEARCH_API_LAUNCH_UTC.month}/"
+                f"{RESEARCH_API_LAUNCH_UTC.year} (Research API launched) who used Research as their "
+                "first request in hourly usage (UTC)."
+            ),
+        )
+    with m_infra:
+        if mean_monthly_infra_usd is not None:
+            st.metric(
+                "Mean monthly infrastructure spend (USD)",
+                f"${mean_monthly_infra_usd:,.0f}",
+                help=(
+                    "Average of calendar-month totals from `infrastructure_costs.csv`: sum of all hourly "
+                    "infrastructure and model columns, grouped by month (UTC month start). "
+                    "Internal spend, not customer revenue."
+                ),
+            )
+        else:
+            st.metric(
+                "Mean monthly infrastructure spend (USD)",
+                "—",
+                help="No usable monthly totals from `infrastructure_costs.csv`.",
+            )
 
     free_pct_users = (100.0 * free_users_count / total_users) if total_users else 0.0
 
@@ -413,34 +438,6 @@ if page == "Overview":
                 st.caption(
                     "Series starts on the **first day with traffic**; the level includes users who signed up **before** that day."
                 )
-
-    _monthly_spend = _monthly_infra_model_spend_usd(df_costs)
-    st.markdown("### Monthly platform spend (USD)")
-    if _monthly_spend.empty or (_monthly_spend["total_usd"].sum() == 0):
-        st.info("No usable rows in `infrastructure_costs.csv` for a monthly spend series.")
-    else:
-        fig_spend = px.bar(
-            _monthly_spend,
-            x="month",
-            y="total_usd",
-            title=None,
-        )
-        fig_spend.update_traces(marker_color="#6366f1")
-        fig_spend.update_layout(
-            showlegend=False,
-            xaxis_title="Month (UTC, month start)",
-            yaxis_title="Total USD",
-            height=360,
-            margin=dict(t=20, b=48, l=56, r=24),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-        )
-        fig_spend.update_yaxes(tickformat=",.0f")
-        st.plotly_chart(fig_spend, use_container_width=True)
-        st.caption(
-            "Sum of hourly **infrastructure** and **model** cost columns in the costs extract, rolled up by calendar month. "
-            "This is internal **spend**, not customer **revenue** (the assignment tables do not include MRR or invoices)."
-        )
 
 # -----------------------------------------------------------------------------
 # Product Analysis
