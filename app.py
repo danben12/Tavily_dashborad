@@ -252,16 +252,21 @@ def _log_yaxis_money_ticks(positive_values: np.ndarray) -> tuple[list[float], li
     return ticks, [_format_currency_usd(float(t)) for t in ticks]
 
 
-def _plotly_log_y_range(y_lo: float, y_hi: float) -> list[float]:
+def _plotly_log_y_range(y_lo: float, y_hi: float, tick_vals: list[float] | None = None) -> list[float]:
     """Plotly ``layout.yaxis.range`` for ``type='log'`` must be **[log10(min), log10(max)]**, not raw USD."""
-    lo_lin = max(float(y_lo) * 0.35, 1e-15)
-    hi_lin = max(float(y_hi) * 3.0, lo_lin * 10.0)
+    lo_lin = max(float(y_lo) * 0.25, 1e-15)
+    hi_lin = max(float(y_hi) * 4.0, lo_lin * 10.0)
+    if tick_vals:
+        tv = np.asarray(tick_vals, dtype=float)
+        lo_lin = min(lo_lin, float(tv.min()) * 0.4)
+        hi_lin = max(hi_lin, float(tv.max()) * 2.5)
     return [float(np.log10(lo_lin)), float(np.log10(hi_lin))]
 
 
 def _log_bar_base(y_lo: float) -> float:
-    """Bars on a log y-axis cannot start at 0; use a small positive base below the smallest value."""
-    return max(float(y_lo) * 0.05, 1e-12)
+    """Bars on a log y-axis cannot start at 0; use a positive base strictly below the smallest value."""
+    y_lo = max(float(y_lo), 1e-15)
+    return float(10 ** (np.floor(np.log10(y_lo)) - 1))
 
 
 # Pricing assumptions (monthly subscription list price, USD). No hardcoded revenue totals.
@@ -276,9 +281,26 @@ PLAN_MONTHLY_USD: dict[str, float] = {
 }
 
 
+def _plan_norm_value(v: object) -> str:
+    if v is None or (isinstance(v, float) and np.isnan(v)):
+        return "unknown"
+    if isinstance(v, (int, np.integer)) and int(v) == 0:
+        return "unknown"
+    if isinstance(v, (float, np.floating)) and float(v) == 0.0:
+        return "unknown"
+    s = str(v).strip().lower()
+    if s in ("", "nan", "none", "<na>"):
+        return "unknown"
+    try:
+        if float(s) == 0.0:
+            return "unknown"
+    except ValueError:
+        pass
+    return s
+
+
 def _plan_norm(series: pd.Series) -> pd.Series:
-    s = series.astype(str).str.lower().str.strip()
-    return s.replace({"": "unknown", "nan": "unknown", "none": "unknown", "0": "unknown"})
+    return series.map(_plan_norm_value)
 
 
 def _period_end_utc(period: pd.Period) -> pd.Timestamp:
@@ -415,7 +437,16 @@ def compute_plan_cost_and_revenue(
             "paygo_revenue": [float(paygo_by.get(p, 0.0)) for p in plans],
         }
     )
+    out["plan"] = out["plan"].map(_plan_norm_value)
+    out = out.groupby("plan", as_index=False, sort=False).agg(
+        total_cost=("total_cost", "sum"),
+        subscription_revenue=("subscription_revenue", "sum"),
+        paygo_revenue=("paygo_revenue", "sum"),
+    )
     out["total_revenue"] = out["subscription_revenue"] + out["paygo_revenue"]
+    tier_rank = {p: i for i, p in enumerate(_tier_order)}
+    out["_rk"] = out["plan"].map(lambda x: tier_rank.get(x, 999))
+    out = out.sort_values(["_rk", "plan"], kind="stable").drop(columns="_rk")
     return out
 
 
@@ -591,7 +622,7 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         tickmode="array",
         tickvals=tick_vals,
         ticktext=tick_text,
-        range=_plotly_log_y_range(y_lo, y_hi),
+        range=_plotly_log_y_range(y_lo, y_hi, tick_vals),
     )
     st.plotly_chart(fig_trend, use_container_width=True)
 
@@ -604,6 +635,12 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
 
     plan_df = compute_plan_cost_and_revenue(req_df, users_unique)
     if not plan_df.empty:
+        plan_df = plan_df[
+            ~plan_df["plan"].astype(str).str.fullmatch(r"0(\.0+)?", case=False, na=False)
+        ].copy()
+        plan_df = plan_df[(plan_df["total_cost"] + plan_df["total_revenue"]) > 0].copy()
+    if not plan_df.empty:
+        x_plans = plan_df["plan"].astype(str)
         cost_y = plan_df["total_cost"].astype(float).to_numpy()
         rev_y = plan_df["total_revenue"].astype(float).to_numpy()
         cost_plot = np.where(cost_y > 0, cost_y, np.nan)
@@ -623,14 +660,14 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
             data=[
                 go.Bar(
                     name="Request cost",
-                    x=plan_df["plan"],
+                    x=x_plans,
                     y=cost_plot,
                     base=_plan_bar_base,
                     marker_color="#C62828",
                 ),
                 go.Bar(
                     name="Total revenue",
-                    x=plan_df["plan"],
+                    x=x_plans,
                     y=rev_plot,
                     base=_plan_bar_base,
                     marker_color="#2E7D32",
@@ -643,7 +680,7 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
             height=460,
             margin=dict(t=40, b=40),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            xaxis_title="User plan",
+            xaxis=dict(type="category", title="User plan"),
             yaxis_title="USD (log scale, K / M)",
         )
         fig_plan.update_yaxes(
@@ -651,7 +688,7 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
             tickmode="array",
             tickvals=tick_p,
             ticktext=text_p,
-            range=_plotly_log_y_range(p_lo, p_hi),
+            range=_plotly_log_y_range(p_lo, p_hi, tick_p),
         )
         st.plotly_chart(fig_plan, use_container_width=True)
 
