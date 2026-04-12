@@ -315,37 +315,7 @@ if page == "Overview: Research User Profile":
 
     st.markdown("---")
 
-    # Row 1: Usage by type (horizontal bar) — full width
-    st.markdown("### Query is still the Backbone for Research Users")
-    st.caption("Total request volume in hourly_usage for this cohort, by request type.")
-    if h_cohort.empty or "request_type" not in h_cohort.columns:
-        st.info("No hourly usage for cohort users.")
-    else:
-        vol = (
-            h_cohort.groupby("request_type", observed=True)["request_count"]
-            .sum()
-            .sort_values(ascending=True)
-        )
-        fig_bar = go.Figure(
-            go.Bar(
-                x=vol.values,
-                y=vol.index.astype(str),
-                orientation="h",
-                marker=dict(color="#6366f1"),
-                hovertemplate="%{y}<br>%{x:,.0f} requests<extra></extra>",
-            )
-        )
-        fig_bar.update_layout(
-            xaxis_title="Total requests (sum of request_count)",
-            yaxis_title="",
-            height=400,
-            margin=dict(t=24, b=48, l=120, r=24),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-        )
-        st.plotly_chart(fig_bar, use_container_width=True)
-
-    # Row 2: 7-day MA traffic + cumulative signups
+    # Row 1: 7-day MA traffic + cumulative signups
     r2a, r2b = st.columns(2)
     with r2a:
         st.markdown("### Traffic trend (7-day moving average)")
@@ -540,6 +510,46 @@ elif page == "Product Analysis":
             paper_bgcolor="rgba(0,0,0,0)",
         )
         st.plotly_chart(fig_donut, use_container_width=True)
+
+    st.markdown("### Query is still the Backbone for Research Users")
+    st.caption("Total request volume in hourly_usage for the Research API cohort, by request type.")
+    _h_prod = df_hourly.dropna(subset=["hour", "user_id"]).copy()
+    _h_prod["user_id"] = _h_prod["user_id"].astype(int)
+    _h_prod = _h_prod[_h_prod["user_id"].isin(_cohort_set_prod)]
+    if _h_prod.empty or "request_type" not in _h_prod.columns:
+        st.info("No hourly usage for cohort users.")
+    else:
+        _vol = (
+            _h_prod.groupby("request_type", observed=True)["request_count"]
+            .sum()
+            .sort_values(ascending=True)
+        )
+        _lbls = _vol.index.astype(str)
+        _fill = []
+        _line = []
+        for _lb in _lbls:
+            _is_res = _lb.lower().strip() == "research"
+            _fill.append("#ea580c" if _is_res else "#ffffff")
+            _line.append("#c2410c" if _is_res else "#94a3b8")
+        fig_bar = go.Figure(
+            go.Bar(
+                x=_vol.values,
+                y=_lbls,
+                orientation="h",
+                marker=dict(color=_fill, line=dict(color=_line, width=1)),
+                hovertemplate="%{y}<br>%{x:,.0f} requests<extra></extra>",
+            )
+        )
+        fig_bar.update_layout(
+            xaxis_title="Total requests (sum of request_count)",
+            yaxis_title="",
+            height=400,
+            margin=dict(t=24, b=48, l=120, r=24),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            xaxis=dict(showgrid=True, gridcolor="rgba(148,163,184,0.35)"),
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
 
     _pareto_pct = _research_pareto_pct_curve(df_research)
     st.markdown("### Research requests vs users (Pareto)")
