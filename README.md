@@ -22,5 +22,5 @@ Expected files: `hourly_usage.csv`, `infrastructure_costs.csv`, `research_reques
 
 ## Pages
 
-- **Product Analysis** — research requests, user adoption, hourly usage mix  
+- **Product Analysis** — placeholder (content cleared)  
 - **Infrastructure & Cost Analysis** — hourly spend by component  
