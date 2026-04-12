@@ -242,7 +242,6 @@ st.sidebar.title("Navigation")
 page = st.sidebar.radio(
     "Go to",
     [
-        "Overview: Research User Profile",
         "Product Analysis",
         "Infrastructure & Cost Analysis",
     ],
@@ -253,155 +252,9 @@ st.sidebar.caption("Tavily Data Analyst home assignment — Dan Benbenisti")
 
 
 # -----------------------------------------------------------------------------
-# Overview — Research user cohort (sample; not platform-wide)
-# -----------------------------------------------------------------------------
-if page == "Overview: Research User Profile":
-    st.title("Research User Cohort: Profile & Adoption")
-    cohort_ids = _research_cohort_user_ids(df_research)
-    cohort_set = set(int(x) for x in cohort_ids.tolist())
-    n_cohort = int(len(cohort_ids))
-
-    # --- KPIs ---
-    # 1) Cohort size (above as n_cohort)
-    # 2) Research-led acquisition: first chronological hourly row is research
-    h_all = df_hourly.dropna(subset=["hour", "user_id"]).copy()
-    h_all["user_id"] = h_all["user_id"].astype(int)
-    h_cohort = h_all[h_all["user_id"].isin(cohort_set)].sort_values(["user_id", "hour"])
-    first_usage = h_cohort.groupby("user_id", sort=False).first() if not h_cohort.empty else pd.DataFrame()
-    n_with_hourly = len(first_usage)
-    n_research_led = 0
-    if n_with_hourly and "request_type" in first_usage.columns:
-        rt0 = first_usage["request_type"].fillna("").astype(str).str.lower().str.strip()
-        n_research_led = int((rt0 == "research").sum())
-    pct_research_led = (100.0 * n_research_led / n_with_hourly) if n_with_hourly else 0.0
-
-    # 3) Monetization (cohort users present in users table)
-    uc = df_users_unique[df_users_unique["user_id"].isin(cohort_set)].copy()
-    n_users_joined = len(uc)
-    n_monetized = 0
-    if n_users_joined and {"plan", "has_paygo"}.issubset(uc.columns):
-        n_monetized = int(
-            uc.apply(lambda r: _user_monetized_row(r["plan"], r["has_paygo"]), axis=1).sum()
-        )
-    pct_monetized = (100.0 * n_monetized / n_users_joined) if n_users_joined else 0.0
-
-    k1, k2, k3 = st.columns(3)
-    with k1:
-        st.metric("Research cohort size", f"{n_cohort:,}", help="Distinct user_id in research_requests.")
-    with k2:
-        st.metric(
-            "Research-led acquisition",
-            f"{pct_research_led:.1f}%",
-            help="Share of cohort users with hourly usage whose **first** recorded request (by time) is `research`.",
-        )
-    with k3:
-        st.metric(
-            "Cohort monetization",
-            f"{pct_monetized:.1f}%",
-            help="Share of cohort users in users.csv on a non-researcher plan or with Pay-as-you-go.",
-        )
-
-    if n_with_hourly < n_cohort:
-        st.caption(
-            f"Research-led rate uses **{n_with_hourly:,} / {n_cohort:,}** cohort users who appear in hourly_usage "
-            "(users with no hourly rows are excluded from this percentage)."
-        )
-    if n_users_joined < n_cohort:
-        st.caption(
-            f"Monetization uses **{n_users_joined:,} / {n_cohort:,}** cohort users matched in users.csv."
-        )
-
-    st.markdown("---")
-
-    # Row 1: 7-day MA traffic + cumulative signups
-    r2a, r2b = st.columns(2)
-    with r2a:
-        st.markdown("### Traffic trend (7-day moving average)")
-        st.caption("Daily total requests from hourly_usage (cohort); line is a 7-day moving average.")
-        if h_cohort.empty:
-            st.info("No hourly data for cohort.")
-        else:
-            hc = h_cohort.copy()
-            hc["_day"] = pd.to_datetime(hc["hour"], utc=True, errors="coerce").dt.normalize()
-            hc["_day"] = hc["_day"].dt.tz_localize(None)
-            daily = hc.groupby(hc["_day"], observed=True)["request_count"].sum().sort_index()
-            ma7 = daily.rolling(window=7, min_periods=1).mean()
-            fig_ma = go.Figure()
-            fig_ma.add_trace(
-                go.Scatter(
-                    x=daily.index,
-                    y=daily.values,
-                    mode="lines",
-                    name="Daily total",
-                    line=dict(color="#94a3b8", width=1),
-                    hovertemplate="%{x|%Y-%m-%d}<br>%{y:,.0f} requests<extra></extra>",
-                )
-            )
-            fig_ma.add_trace(
-                go.Scatter(
-                    x=ma7.index,
-                    y=ma7.values,
-                    mode="lines",
-                    name="7-day MA",
-                    line=dict(color="#2563eb", width=2.5),
-                    hovertemplate="%{x|%Y-%m-%d}<br>%{y:,.0f} requests (MA)<extra></extra>",
-                )
-            )
-            fig_ma.update_layout(
-                xaxis_title="Date (UTC, naive)",
-                yaxis_title="Requests",
-                height=420,
-                margin=dict(t=24, b=48, l=56, r=24),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                xaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
-                yaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
-            )
-            st.plotly_chart(fig_ma, use_container_width=True)
-
-    with r2b:
-        st.markdown("### Cohort growth (by signup date)")
-        st.caption("Cumulative distinct cohort users by `created_at` (users.csv).")
-        if uc.empty or "created_at" not in uc.columns:
-            st.info("No `created_at` for matched cohort users.")
-        else:
-            cr = pd.to_datetime(uc["created_at"], utc=True, errors="coerce").dropna()
-            cr = cr.dt.normalize().dt.tz_localize(None)
-            daily_u = cr.value_counts().sort_index()
-            cum_u = daily_u.cumsum()
-            fig_area = go.Figure(
-                go.Scatter(
-                    x=cum_u.index,
-                    y=cum_u.values,
-                    mode="lines",
-                    fill="tozeroy",
-                    line=dict(color="#059669", width=2),
-                    fillcolor="rgba(5, 150, 105, 0.2)",
-                    name="Cumulative users",
-                    hovertemplate="%{x|%Y-%m-%d}<br>%{y:,} users<extra></extra>",
-                )
-            )
-            fig_area.update_layout(
-                xaxis_title="Signup date (UTC, naive)",
-                yaxis_title="Cumulative users",
-                height=420,
-                margin=dict(t=24, b=48, l=56, r=24),
-                showlegend=False,
-                xaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
-                yaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
-            )
-            st.plotly_chart(fig_area, use_container_width=True)
-
-    st.success(
-        "**Cohort Insight:** The Research API acts as a strong acquisition magnet, with over 18% of this cohort "
-        "joining Tavily specifically to use this feature. While these users are highly active across the ecosystem "
-        "(especially in **Query**), they represent a premium segment where **reliability** and **cost-efficiency** are "
-        "paramount."
-    )
-
-# -----------------------------------------------------------------------------
 # Product Analysis — Part 1 (rebuild)
 # -----------------------------------------------------------------------------
-elif page == "Product Analysis":
+if page == "Product Analysis":
     st.title("Product analysis")
     if "user_id" in df_research.columns:
         n_research_users_rq = int(

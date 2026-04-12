@@ -22,6 +22,5 @@ Expected files: `hourly_usage.csv`, `infrastructure_costs.csv`, `research_reques
 
 ## Pages
 
-- **Overview** — cross-dataset KPIs and cost-over-time snapshot  
 - **Product Analysis** — research requests, user adoption, hourly usage mix  
 - **Infrastructure & Cost Analysis** — hourly spend by component  
