@@ -22,5 +22,5 @@ Expected files: `hourly_usage.csv`, `infrastructure_costs.csv`, `research_reques
 
 ## Pages
 
-- **Product Analysis** — Research API strategic view (revenue, arbitrage, growth vs. burn, CAC-style efficiency)  
+- **Product Analysis** — placeholder (content cleared)  
 - **Infrastructure & Cost Analysis** — hourly spend by component  
