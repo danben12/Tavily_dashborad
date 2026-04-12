@@ -330,23 +330,16 @@ if page == "Product Analysis":
     _cohort_set_prod = set(
         int(x) for x in _research_cohort_user_ids(df_research).tolist()
     )
-    _uc_prod = df_users_unique[df_users_unique["user_id"].isin(_cohort_set_prod)].copy()
-    _n_users_prod = len(_uc_prod)
-    _n_mon_prod = 0
-    if _n_users_prod and {"plan", "has_paygo"}.issubset(_uc_prod.columns):
-        _n_mon_prod = int(
-            _uc_prod.apply(lambda r: _user_monetized_row(r["plan"], r["has_paygo"]), axis=1).sum()
-        )
-    _n_free_prod = max(0, _n_users_prod - _n_mon_prod) if _n_users_prod else 0
-
     _h_prod = df_hourly.dropna(subset=["hour", "user_id"]).copy()
     _h_prod["user_id"] = _h_prod["user_id"].astype(int)
     _h_prod = _h_prod[_h_prod["user_id"].isin(_cohort_set_prod)]
 
-    _chart_top_h = 380
+    _sec_chart_h = 380
 
-    _c_top_l, _c_top_r = st.columns(2)
-    with _c_top_l:
+    st.markdown("---")
+    st.subheader("1. Cohort Profile & Ecosystem Footprint")
+    _s1_l, _s1_r = st.columns(2)
+    with _s1_l:
         st.markdown("### Research API: unique users per day")
         st.caption(
             "**Blue:** distinct `user_id` with ≥1 **research** request that day (`research_requests`, UTC). "
@@ -414,7 +407,7 @@ if page == "Product Analysis":
                 fig_dau.update_layout(
                     xaxis_title="Date (UTC)",
                     yaxis_title="Unique users",
-                    height=_chart_top_h,
+                    height=_sec_chart_h,
                     margin=dict(t=16, b=48, l=52, r=16),
                     showlegend=True,
                     legend=dict(
@@ -430,191 +423,251 @@ if page == "Product Analysis":
                 )
                 st.plotly_chart(fig_dau, use_container_width=True)
 
-    with _c_top_r:
-        st.markdown("### Monetization (Research API cohort)")
-        st.caption(
-            "Users who appear in research_requests, matched to users.csv: **Monetized** (non-researcher plan or PayGo) "
-            "vs **Fully free**."
-        )
-        if _n_users_prod == 0:
-            st.info("No cohort users matched in users.csv for this chart.")
+    with _s1_r:
+        st.markdown("### Query is still the Backbone for Research Users")
+        st.caption("Total request volume in hourly_usage for the Research API cohort, by request type.")
+        if _h_prod.empty or "request_type" not in _h_prod.columns:
+            st.info("No hourly usage for cohort users.")
         else:
-            fig_donut = go.Figure(
-                data=[
-                    go.Pie(
-                        labels=["Monetized", "Fully free"],
-                        values=[_n_mon_prod, _n_free_prod],
-                        hole=0.55,
-                        marker=dict(colors=["#0ea5e9", "#cbd5e1"]),
-                        textinfo="label+percent",
-                        hovertemplate="%{label}<br>%{value:,} users<br>%{percent}<extra></extra>",
-                    )
-                ]
+            _vol = (
+                _h_prod.groupby("request_type", observed=True)["request_count"]
+                .sum()
+                .sort_values(ascending=True)
             )
-            fig_donut.update_layout(
-                showlegend=True,
-                height=_chart_top_h,
-                margin=dict(t=16, b=20, l=12, r=12),
-                legend=dict(
-                    font=dict(color="#e2e8f0", size=11),
+            _lbls = _vol.index.astype(str)
+            _fill = []
+            _line = []
+            for _lb in _lbls:
+                _is_res = _lb.lower().strip() == "research"
+                _fill.append("#ea580c" if _is_res else "#ffffff")
+                _line.append("#c2410c" if _is_res else "#94a3b8")
+            fig_bar = go.Figure(
+                go.Bar(
+                    x=_vol.values,
+                    y=_lbls,
                     orientation="h",
-                    yanchor="bottom",
-                    y=-0.2,
-                    xanchor="center",
-                    x=0.5,
-                ),
+                    marker=dict(color=_fill, line=dict(color=_line, width=1)),
+                    hovertemplate="%{y}<br>%{x:,.0f} requests<extra></extra>",
+                )
             )
-            st.plotly_chart(fig_donut, use_container_width=True)
-
-    st.markdown("### Query is still the Backbone for Research Users")
-    st.caption("Total request volume in hourly_usage for the Research API cohort, by request type.")
-    if _h_prod.empty or "request_type" not in _h_prod.columns:
-        st.info("No hourly usage for cohort users.")
-    else:
-        _vol = (
-            _h_prod.groupby("request_type", observed=True)["request_count"]
-            .sum()
-            .sort_values(ascending=True)
-        )
-        _lbls = _vol.index.astype(str)
-        _fill = []
-        _line = []
-        for _lb in _lbls:
-            _is_res = _lb.lower().strip() == "research"
-            _fill.append("#ea580c" if _is_res else "#ffffff")
-            _line.append("#c2410c" if _is_res else "#94a3b8")
-        fig_bar = go.Figure(
-            go.Bar(
-                x=_vol.values,
-                y=_lbls,
-                orientation="h",
-                marker=dict(color=_fill, line=dict(color=_line, width=1)),
-                hovertemplate="%{y}<br>%{x:,.0f} requests<extra></extra>",
+            fig_bar.update_layout(
+                xaxis_title="Total requests (sum of request_count)",
+                yaxis_title="",
+                height=_sec_chart_h,
+                margin=dict(t=16, b=48, l=100, r=16),
+                xaxis=dict(showgrid=True, gridcolor="rgba(148,163,184,0.28)"),
+                yaxis=dict(showgrid=False),
             )
-        )
-        fig_bar.update_layout(
-            xaxis_title="Total requests (sum of request_count)",
-            yaxis_title="",
-            height=400,
-            margin=dict(t=16, b=48, l=120, r=24),
-            xaxis=dict(showgrid=True, gridcolor="rgba(148,163,184,0.28)"),
-            yaxis=dict(showgrid=False),
-        )
-        st.plotly_chart(fig_bar, use_container_width=True)
+            st.plotly_chart(fig_bar, use_container_width=True)
 
-    st.markdown("### Product stickiness: active days per user")
-    if not {"user_id", "timestamp"}.issubset(df_research.columns):
-        st.info("research_requests is missing `user_id` or `timestamp` for this chart.")
-    else:
-        _stk = df_research.dropna(subset=["user_id", "timestamp"]).copy()
-        _stk["user_id"] = _stk["user_id"].astype(int)
-        _stk["_date"] = pd.to_datetime(_stk["timestamp"], utc=True, errors="coerce").dt.date
-        _stk = _stk.dropna(subset=["_date"])
-        if _stk.empty:
-            st.info("No valid timestamps in research_requests for this chart.")
+    st.markdown("---")
+    st.subheader("2. Profitability vs. Resource Distribution")
+    _s2_l, _s2_r = st.columns(2)
+    with _s2_l:
+        st.markdown("### Pro request: cost vs. estimated revenue")
+        if "model" not in df_research.columns or "request_cost" not in df_research.columns:
+            st.info("research_requests needs `model` and `request_cost` for this chart.")
         else:
-            _active_days_per_user = (
-                _stk.groupby("user_id", observed=True)["_date"].nunique().reset_index()
-            )
-            _active_days_per_user.columns = ["user_id", "days_active"]
-            _user_distribution = (
-                _active_days_per_user.groupby("days_active", observed=True)["user_id"]
-                .count()
-                .reset_index()
-            )
-            _user_distribution.columns = ["days_active", "user_count"]
-            _user_distribution = _user_distribution.sort_values("days_active")
-            fig_stick = px.bar(
-                _user_distribution,
-                x="days_active",
-                y="user_count",
-                labels={
-                    "days_active": "Total days used",
-                    "user_count": "Number of users",
-                },
-                color_discrete_sequence=["#38bdf8"],
-            )
-            fig_stick.update_layout(
-                title=dict(
-                    text="Product Stickiness: Distribution of Active Days per User",
-                    x=0.5,
-                    xanchor="center",
-                ),
-                xaxis_title="Total Days Used",
-                yaxis_title="Number of Users",
-                showlegend=False,
-                height=420,
-                margin=dict(t=56, b=48, l=56, r=24),
-                xaxis=dict(type="category", gridcolor="rgba(148,163,184,0.25)"),
-                yaxis=dict(
-                    type="log",
-                    gridcolor="rgba(148,163,184,0.25)",
-                    tickmode="array",
-                    tickvals=[1, 10, 100, 1000, 10000],
-                    ticktext=["1", "10", "100", "1,000", "10,000"],
-                ),
-            )
-            fig_stick.update_traces(
-                hovertemplate="Days active: %{x}<br>Users: %{y:,}<extra></extra>",
-            )
-            st.plotly_chart(fig_stick, use_container_width=True)
-            st.caption(
-                "Insight: This distribution highlights product stickiness. A heavy concentration on **1 day** "
-                "indicates users trying the feature once, while the tail represents highly engaged, retained users."
-            )
+            _pro_mask = df_research["model"].astype(str).str.strip().str.lower() == "pro"
+            _pro_rc = pd.to_numeric(df_research.loc[_pro_mask, "request_cost"], errors="coerce").dropna()
+            if _pro_rc.empty:
+                st.info("No rows with `model == 'pro'` and valid `request_cost` in this extract.")
+            else:
+                _avg_cost_usd = float(_pro_rc.mean() / 1000.0)
+                _rev_pro = 0.28
+                fig_ue = go.Figure(
+                    go.Bar(
+                        x=["Average cost (Pro)", "Estimated revenue (Pro)"],
+                        y=[_avg_cost_usd, _rev_pro],
+                        marker_color=["#94a3b8", "#22c55e"],
+                        text=[f"${_avg_cost_usd:.3f}", f"${_rev_pro:.2f}"],
+                        textposition="outside",
+                        hovertemplate="%{x}<br>$%{y:.4f}<extra></extra>",
+                    )
+                )
+                fig_ue.update_layout(
+                    yaxis_title="USD",
+                    height=_sec_chart_h,
+                    margin=dict(t=24, b=48, l=52, r=16),
+                    showlegend=False,
+                    xaxis=dict(tickangle=-12),
+                    yaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
+                )
+                st.plotly_chart(fig_ue, use_container_width=True)
+                st.caption(
+                    "Insight: The base unit economics are profitable (positive margin), but overall profitability "
+                    "is eroded by free-tier distribution."
+                )
 
-    _pareto_pct = _research_pareto_pct_curve(df_research)
-    st.markdown("### Research requests vs users (Pareto)")
-    if _pareto_pct is None or len(_pareto_pct) < 2:
-        st.info("Not enough data in research_requests to plot cumulative % users vs % requests.")
-    else:
-        st.caption(
-            "Users sorted by **number of research requests** (highest first). "
-            "Each point: include the top *x*% of those users → they account for *y*% of all requests in this extract."
-        )
-        fig_par = go.Figure()
-        fig_par.add_trace(
-            go.Scatter(
-                x=_pareto_pct["pct_users"],
-                y=_pareto_pct["pct_requests"],
-                mode="lines",
-                line=dict(color="#ea580c", width=2.5),
-                fill="tozeroy",
-                fillcolor="rgba(234, 88, 12, 0.12)",
-                name="Actual",
-                hovertemplate="Users: %{x:.1f}%<br>Requests: %{y:.1f}%<extra></extra>",
+    with _s2_r:
+        st.markdown("### Research requests vs users (Pareto)")
+        _pareto_pct = _research_pareto_pct_curve(df_research)
+        if _pareto_pct is None or len(_pareto_pct) < 2:
+            st.info("Not enough data in research_requests to plot cumulative % users vs % requests.")
+        else:
+            st.caption(
+                "Users sorted by **number of research requests** (highest first). "
+                "Each point: include the top *x*% of those users → they account for *y*% of all requests in this extract."
             )
-        )
-        fig_par.add_trace(
-            go.Scatter(
-                x=[0, 100],
-                y=[0, 100],
-                mode="lines",
-                line=dict(color="#94a3b8", width=1, dash="dash"),
-                name="Equal share",
-                hoverinfo="skip",
+            fig_par = go.Figure()
+            fig_par.add_trace(
+                go.Scatter(
+                    x=_pareto_pct["pct_users"],
+                    y=_pareto_pct["pct_requests"],
+                    mode="lines",
+                    line=dict(color="#ea580c", width=2.5),
+                    fill="tozeroy",
+                    fillcolor="rgba(234, 88, 12, 0.12)",
+                    name="Actual",
+                    hovertemplate="Users: %{x:.1f}%<br>Requests: %{y:.1f}%<extra></extra>",
+                )
             )
-        )
-        fig_par.update_layout(
-            xaxis_title="Cumulative % of users (by request volume rank)",
-            yaxis_title="Cumulative % of research requests",
-            xaxis=dict(
-                range=[0, 100],
-                dtick=10,
-                ticksuffix="%",
-                gridcolor="rgba(148,163,184,0.25)",
-            ),
-            yaxis=dict(
-                range=[0, 100],
-                dtick=10,
-                ticksuffix="%",
-                gridcolor="rgba(148,163,184,0.25)",
-            ),
-            height=460,
-            margin=dict(t=32, b=48, l=56, r=24),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        )
-        st.plotly_chart(fig_par, use_container_width=True)
+            fig_par.add_trace(
+                go.Scatter(
+                    x=[0, 100],
+                    y=[0, 100],
+                    mode="lines",
+                    line=dict(color="#94a3b8", width=1, dash="dash"),
+                    name="Equal share",
+                    hoverinfo="skip",
+                )
+            )
+            fig_par.update_layout(
+                xaxis_title="Cumulative % of users (by request volume rank)",
+                yaxis_title="Cumulative % of research requests",
+                xaxis=dict(
+                    range=[0, 100],
+                    dtick=10,
+                    ticksuffix="%",
+                    gridcolor="rgba(148,163,184,0.25)",
+                ),
+                yaxis=dict(
+                    range=[0, 100],
+                    dtick=10,
+                    ticksuffix="%",
+                    gridcolor="rgba(148,163,184,0.25)",
+                ),
+                height=_sec_chart_h,
+                margin=dict(t=24, b=48, l=56, r=24),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            )
+            st.plotly_chart(fig_par, use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("3. Friction & Drop-off (User Experience)")
+    _s3_l, _s3_r = st.columns(2)
+    with _s3_l:
+        _bin_lbls = ["0-30s", "30-60s", "60-90s", "90-120s", "120s+"]
+        if not {"response_time_seconds", "status"}.issubset(df_research.columns):
+            st.info("research_requests needs `response_time_seconds` and `status` for this chart.")
+        else:
+            _dz = df_research.dropna(subset=["response_time_seconds"]).copy()
+            _dz["response_time_seconds"] = pd.to_numeric(_dz["response_time_seconds"], errors="coerce")
+            _dz = _dz.dropna(subset=["response_time_seconds"])
+            if _dz.empty:
+                st.info("No valid `response_time_seconds` in research_requests.")
+            else:
+                _dz["_st"] = _dz["status"].fillna("").astype(str).str.lower().str.strip()
+                _dz["time_bin"] = pd.cut(
+                    _dz["response_time_seconds"],
+                    bins=[0, 30, 60, 90, 120, np.inf],
+                    labels=_bin_lbls,
+                    right=False,
+                    include_lowest=True,
+                )
+                _dz = _dz.dropna(subset=["time_bin"])
+                _can_rates = (
+                    _dz.groupby("time_bin", observed=False)["_st"]
+                    .agg(lambda s: 100.0 * float((s == "cancelled").sum()) / max(len(s), 1))
+                    .reindex(_bin_lbls)
+                    .fillna(0.0)
+                )
+                _bar_colors = ["#ef4444" if b == "90-120s" else "#3b82f6" for b in _can_rates.index.astype(str)]
+                fig_dz = go.Figure(
+                    go.Bar(
+                        x=_can_rates.index.astype(str),
+                        y=_can_rates.values,
+                        marker_color=_bar_colors,
+                        hovertemplate="%{x}<br>Cancellation rate: %{y:.2f}%<extra></extra>",
+                    )
+                )
+                fig_dz.update_layout(
+                    title=dict(
+                        text="The Danger Zone: Cancellation Rate by Latency",
+                        x=0.5,
+                        xanchor="center",
+                    ),
+                    xaxis_title="Response time bucket",
+                    yaxis_title="Cancellation rate (%)",
+                    height=_sec_chart_h,
+                    margin=dict(t=48, b=48, l=52, r=16),
+                    showlegend=False,
+                    yaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
+                    xaxis=dict(type="category", categoryorder="array", categoryarray=_bin_lbls),
+                )
+                st.plotly_chart(fig_dz, use_container_width=True)
+
+    with _s3_r:
+        st.markdown("### Product stickiness: active days per user")
+        if not {"user_id", "timestamp"}.issubset(df_research.columns):
+            st.info("research_requests is missing `user_id` or `timestamp` for this chart.")
+        else:
+            _stk = df_research.dropna(subset=["user_id", "timestamp"]).copy()
+            _stk["user_id"] = _stk["user_id"].astype(int)
+            _stk["_date"] = pd.to_datetime(_stk["timestamp"], utc=True, errors="coerce").dt.date
+            _stk = _stk.dropna(subset=["_date"])
+            if _stk.empty:
+                st.info("No valid timestamps in research_requests for this chart.")
+            else:
+                _active_days_per_user = (
+                    _stk.groupby("user_id", observed=True)["_date"].nunique().reset_index()
+                )
+                _active_days_per_user.columns = ["user_id", "days_active"]
+                _user_distribution = (
+                    _active_days_per_user.groupby("days_active", observed=True)["user_id"]
+                    .count()
+                    .reset_index()
+                )
+                _user_distribution.columns = ["days_active", "user_count"]
+                _user_distribution = _user_distribution.sort_values("days_active")
+                fig_stick = px.bar(
+                    _user_distribution,
+                    x="days_active",
+                    y="user_count",
+                    labels={
+                        "days_active": "Total days used",
+                        "user_count": "Number of users",
+                    },
+                    color_discrete_sequence=["#38bdf8"],
+                )
+                fig_stick.update_layout(
+                    title=dict(
+                        text="Product Stickiness: Distribution of Active Days per User",
+                        x=0.5,
+                        xanchor="center",
+                    ),
+                    xaxis_title="Total Days Used",
+                    yaxis_title="Number of Users",
+                    showlegend=False,
+                    height=_sec_chart_h,
+                    margin=dict(t=48, b=48, l=56, r=16),
+                    xaxis=dict(type="category", gridcolor="rgba(148,163,184,0.25)"),
+                    yaxis=dict(
+                        type="log",
+                        gridcolor="rgba(148,163,184,0.25)",
+                        tickmode="array",
+                        tickvals=[1, 10, 100, 1000, 10000],
+                        ticktext=["1", "10", "100", "1,000", "10,000"],
+                    ),
+                )
+                fig_stick.update_traces(
+                    hovertemplate="Days active: %{x}<br>Users: %{y:,}<extra></extra>",
+                )
+                st.plotly_chart(fig_stick, use_container_width=True)
+                st.caption(
+                    "Insight: This distribution highlights product stickiness. A heavy concentration on **1 day** "
+                    "indicates users trying the feature once, while the tail represents highly engaged, retained users."
+                )
 
     st.info(
         "Additional Part 1 sections (questions, hypotheses, KPIs, visuals) will be added here. "
