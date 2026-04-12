@@ -680,8 +680,8 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         "Compare cumulative **request cost** to modeled revenue **by billing segment**. "
         "**Simple free tier** is `plan == researcher` with `has_paygo == False`; **Researcher with PayGo** is the same plan with PayGo enabled. "
         "Subscription revenue is the sum of monthly list prices for users active through each month; PayGo is allocated to the user’s segment. "
-        "**Request cost** bars are **stacked** by `model` (**mini** + **pro** + other). "
-        "Y-axis formatting matches the monthly chart: **log scale**, **K / M tick labels**, and a **bar base** one decade below the smallest plotted value (so bars clear zero on the log axis)."
+        "**Request cost** is shown as **separate grouped bars** per `model` (**mini**, **pro**, other) plus a **total request cost** bar (same height as the sum of the model bars) so scale is easy to read on a log axis. "
+        "Y-axis formatting matches the monthly chart: **log scale**, **K / M tick labels**, and a **bar base** one decade below the smallest positive value."
     )
 
     plan_df = compute_plan_cost_and_revenue(req_df, users_unique)
@@ -710,40 +710,39 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         y_lo_plan = float(np.min(_pos_plan))
         y_hi_plan = float(np.max(_pos_plan))
         bf = _log_bar_base(y_lo_plan)
-        c0 = np.full_like(mini_y, bf, dtype=float)
-        c1 = c0 + mini_y
-        c2 = c1 + pro_y
-        c3 = c2 + other_y
+        base_bf = np.full(len(mini_y), bf, dtype=float)
         base_rev = np.where(np.isfinite(rev_plot), bf, np.nan)
-        # Same as monthly revenue bar: top of bar is the actual dollar value on the axis (not value+base).
-        y_rev_bar = rev_plot
+        mini_plot = np.where(mini_y > 0, mini_y, np.nan)
+        pro_plot = np.where(pro_y > 0, pro_y, np.nan)
+        other_plot = np.where(other_y > 0, other_y, np.nan)
+        total_plot = np.where(total_cost_y > 0, total_cost_y, np.nan)
 
         _bars: list[go.Bar] = [
             go.Bar(
                 name="Total revenue",
                 legendgroup="rev",
                 x=x_plans,
-                y=y_rev_bar,
+                y=rev_plot,
                 base=base_rev,
                 offsetgroup="revenue",
                 marker_color="#42A5F5",
             ),
             go.Bar(
                 name="Request cost - mini",
-                legendgroup="cost",
+                legendgroup="model",
                 x=x_plans,
-                y=c1,
-                base=c0,
-                offsetgroup="cost",
+                y=mini_plot,
+                base=base_bf,
+                offsetgroup="mini",
                 marker_color="#78909C",
             ),
             go.Bar(
                 name="Request cost - pro",
-                legendgroup="cost",
+                legendgroup="model",
                 x=x_plans,
-                y=c2,
-                base=c1,
-                offsetgroup="cost",
+                y=pro_plot,
+                base=base_bf,
+                offsetgroup="pro",
                 marker_color="#EF5350",
             ),
         ]
@@ -751,29 +750,40 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
             _bars.append(
                 go.Bar(
                     name="Request cost - other models",
-                    legendgroup="cost",
+                    legendgroup="model",
                     x=x_plans,
-                    y=c3,
-                    base=c2,
-                    offsetgroup="cost",
+                    y=other_plot,
+                    base=base_bf,
+                    offsetgroup="other",
                     marker_color="#BDBDBD",
                 )
             )
+        _bars.append(
+            go.Bar(
+                name="Total request cost",
+                legendgroup="total_cost",
+                x=x_plans,
+                y=total_plot,
+                base=base_bf,
+                offsetgroup="total_cost",
+                marker_color="#37474F",
+            )
+        )
 
         fig_plan = go.Figure(data=_bars)
-        _tops_cost = c3 if float(other_y.sum()) > 0.0 else c2
         _axis_hi = max(
             y_hi_plan,
-            float(np.nanmax(y_rev_bar)) if np.any(np.isfinite(y_rev_bar)) else 0.0,
-            float(np.max(_tops_cost)),
+            float(np.nanmax(rev_plot)) if np.any(np.isfinite(rev_plot)) else 0.0,
+            float(np.nanmax(total_plot)) if np.any(np.isfinite(total_plot)) else 0.0,
         )
         _axis_lo = min(y_lo_plan, bf)
 
         fig_plan.update_layout(
             barmode="group",
+            bargap=0.22,
             template="plotly_dark",
-            height=440,
-            margin=dict(t=40, b=40),
+            height=480,
+            margin=dict(t=48, b=40),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             xaxis=dict(
                 type="category",
