@@ -697,6 +697,9 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         pro_y = plan_df["cost_pro"].astype(float).to_numpy()
         other_y = plan_df["cost_other"].astype(float).to_numpy()
         total_cost_y = plan_df["total_cost"].astype(float).to_numpy()
+        # Plotly 6 removed ``stackgroup`` on Bar; stack with explicit ``base`` (works 5.x + 6.x).
+        base_pro = mini_y
+        base_other = mini_y + pro_y
 
         _bars: list[go.Bar] = [
             go.Bar(
@@ -708,33 +711,32 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
                 marker_color="#42A5F5",
             ),
             go.Bar(
-                name="Request cost — mini",
+                name="Request cost - mini",
                 legendgroup="cost",
                 x=x_plans,
                 y=mini_y,
                 offsetgroup="cost",
-                stackgroup="request_cost",
                 marker_color="#78909C",
             ),
             go.Bar(
-                name="Request cost — pro",
+                name="Request cost - pro",
                 legendgroup="cost",
                 x=x_plans,
                 y=pro_y,
+                base=base_pro,
                 offsetgroup="cost",
-                stackgroup="request_cost",
                 marker_color="#EF5350",
             ),
         ]
         if float(other_y.sum()) > 0.0:
             _bars.append(
                 go.Bar(
-                    name="Request cost — other models",
+                    name="Request cost - other models",
                     legendgroup="cost",
                     x=x_plans,
                     y=other_y,
+                    base=base_other,
                     offsetgroup="cost",
-                    stackgroup="request_cost",
                     marker_color="#BDBDBD",
                 )
             )
