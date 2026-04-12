@@ -252,6 +252,18 @@ def _log_yaxis_money_ticks(positive_values: np.ndarray) -> tuple[list[float], li
     return ticks, [_format_currency_usd(float(t)) for t in ticks]
 
 
+def _plotly_log_y_range(y_lo: float, y_hi: float) -> list[float]:
+    """Plotly ``layout.yaxis.range`` for ``type='log'`` must be **[log10(min), log10(max)]**, not raw USD."""
+    lo_lin = max(float(y_lo) * 0.35, 1e-15)
+    hi_lin = max(float(y_hi) * 3.0, lo_lin * 10.0)
+    return [float(np.log10(lo_lin)), float(np.log10(hi_lin))]
+
+
+def _log_bar_base(y_lo: float) -> float:
+    """Bars on a log y-axis cannot start at 0; use a small positive base below the smallest value."""
+    return max(float(y_lo) * 0.05, 1e-12)
+
+
 # Pricing assumptions (monthly subscription list price, USD). No hardcoded revenue totals.
 PAYGO_USD_PER_CREDIT = 0.008
 PLAN_MONTHLY_USD: dict[str, float] = {
@@ -538,11 +550,20 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
     _pos = np.concatenate([rev_y[rev_y > 0], cost_y[cost_y > 0]])
     tick_vals, tick_text = _log_yaxis_money_ticks(_pos if _pos.size else np.array([1.0], dtype=float))
 
+    _stack = np.concatenate([rev_plot, cost_plot])
+    _finite = _stack[np.isfinite(_stack) & (_stack > 0)]
+    if _finite.size:
+        y_lo, y_hi = float(_finite.min()), float(_finite.max())
+    else:
+        y_lo, y_hi = 1.0, 10.0
+    _bar_base = _log_bar_base(y_lo)
+
     fig_trend = go.Figure()
     fig_trend.add_trace(
         go.Bar(
             x=monthly["period_label"],
             y=rev_plot,
+            base=_bar_base,
             name="Total revenue",
             marker_color="#42A5F5",
         )
@@ -551,6 +572,7 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         go.Bar(
             x=monthly["period_label"],
             y=cost_plot,
+            base=_bar_base,
             name="Request cost",
             marker_color="#EF5350",
         )
@@ -564,18 +586,12 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         xaxis_title="Month",
         yaxis_title="USD (log scale, K / M)",
     )
-    _stack = np.concatenate([rev_plot, cost_plot])
-    _finite = _stack[np.isfinite(_stack) & (_stack > 0)]
-    if _finite.size:
-        y_lo, y_hi = float(_finite.min()), float(_finite.max())
-    else:
-        y_lo, y_hi = 1.0, 10.0
     fig_trend.update_yaxes(
         type="log",
         tickmode="array",
         tickvals=tick_vals,
         ticktext=tick_text,
-        range=[max(y_lo * 0.5, 1e-6), y_hi * 2.5],
+        range=_plotly_log_y_range(y_lo, y_hi),
     )
     st.plotly_chart(fig_trend, use_container_width=True)
 
@@ -595,18 +611,28 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         _pos_p = np.concatenate([cost_y[cost_y > 0], rev_y[rev_y > 0]])
         tick_p, text_p = _log_yaxis_money_ticks(_pos_p if _pos_p.size else np.array([1.0], dtype=float))
 
+        _sp = np.concatenate([cost_plot, rev_plot])
+        _fin_p = _sp[np.isfinite(_sp) & (_sp > 0)]
+        if _fin_p.size:
+            p_lo, p_hi = float(_fin_p.min()), float(_fin_p.max())
+        else:
+            p_lo, p_hi = 1.0, 10.0
+        _plan_bar_base = _log_bar_base(p_lo)
+
         fig_plan = go.Figure(
             data=[
                 go.Bar(
                     name="Request cost",
                     x=plan_df["plan"],
                     y=cost_plot,
+                    base=_plan_bar_base,
                     marker_color="#C62828",
                 ),
                 go.Bar(
                     name="Total revenue",
                     x=plan_df["plan"],
                     y=rev_plot,
+                    base=_plan_bar_base,
                     marker_color="#2E7D32",
                 ),
             ]
@@ -620,18 +646,12 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
             xaxis_title="User plan",
             yaxis_title="USD (log scale, K / M)",
         )
-        _sp = np.concatenate([cost_plot, rev_plot])
-        _fin_p = _sp[np.isfinite(_sp) & (_sp > 0)]
-        if _fin_p.size:
-            p_lo, p_hi = float(_fin_p.min()), float(_fin_p.max())
-        else:
-            p_lo, p_hi = 1.0, 10.0
         fig_plan.update_yaxes(
             type="log",
             tickmode="array",
             tickvals=tick_p,
             ticktext=text_p,
-            range=[max(p_lo * 0.5, 1e-6), p_hi * 2.5],
+            range=_plotly_log_y_range(p_lo, p_hi),
         )
         st.plotly_chart(fig_plan, use_container_width=True)
 
