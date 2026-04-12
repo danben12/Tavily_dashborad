@@ -662,7 +662,7 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         barmode="group",
         height=440,
         margin=dict(t=40, b=40),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
         xaxis=dict(type="category", title="Month", categoryorder="array", categoryarray=monthly["period_label"].tolist()),
         yaxis_title="USD (cost/revenue)",
     )
@@ -784,7 +784,7 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
             template="plotly_dark",
             height=480,
             margin=dict(t=48, b=40),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
             xaxis=dict(
                 type="category",
                 title="User plan",
