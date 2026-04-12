@@ -425,6 +425,26 @@ def compute_plan_cost_and_revenue(
     merged_all["plan_bucket"] = _plan_bucket_series(merged_all["plan_norm"], merged_all["has_paygo"])
     cost_by = merged_all.groupby("plan_bucket", observed=True)["request_cost"].sum()
 
+    if "model" in merged_all.columns:
+        merged_all["_model"] = merged_all["model"].astype(str).str.lower().str.strip()
+        cost_mini_by = (
+            merged_all.loc[merged_all["_model"].eq("mini")]
+            .groupby("plan_bucket", observed=True)["request_cost"]
+            .sum()
+        )
+        cost_pro_by = (
+            merged_all.loc[merged_all["_model"].eq("pro")]
+            .groupby("plan_bucket", observed=True)["request_cost"]
+            .sum()
+        )
+        cost_other_by = (
+            merged_all.loc[~merged_all["_model"].isin(["mini", "pro"])]
+            .groupby("plan_bucket", observed=True)["request_cost"]
+            .sum()
+        )
+    else:
+        cost_mini_by = cost_pro_by = cost_other_by = pd.Series(dtype=float)
+
     paygo_m = merged_all.loc[merged_all["has_paygo"].fillna(False).astype(bool)]
     paygo_by = paygo_m.groupby("plan_bucket", observed=True)["credits_used"].sum() * PAYGO_USD_PER_CREDIT
 
@@ -459,12 +479,18 @@ def compute_plan_cost_and_revenue(
             "total_cost": [float(cost_by.get(p, 0.0)) for p in plans],
             "subscription_revenue": [float(sub_by.get(p, 0.0)) for p in plans],
             "paygo_revenue": [float(paygo_by.get(p, 0.0)) for p in plans],
+            "cost_mini": [float(cost_mini_by.get(p, 0.0)) for p in plans],
+            "cost_pro": [float(cost_pro_by.get(p, 0.0)) for p in plans],
+            "cost_other": [float(cost_other_by.get(p, 0.0)) for p in plans],
         }
     )
     out = out.groupby("plan", as_index=False, sort=False).agg(
         total_cost=("total_cost", "sum"),
         subscription_revenue=("subscription_revenue", "sum"),
         paygo_revenue=("paygo_revenue", "sum"),
+        cost_mini=("cost_mini", "sum"),
+        cost_pro=("cost_pro", "sum"),
+        cost_other=("cost_other", "sum"),
     )
     out["total_revenue"] = out["subscription_revenue"] + out["paygo_revenue"]
     tier_rank = {p: i for i, p in enumerate(_tier_order)}
@@ -653,7 +679,8 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
     st.markdown(
         "Compare cumulative **request cost** to modeled revenue **by billing segment**. "
         "**Simple free tier** is `plan == researcher` with `has_paygo == False`; **Researcher with PayGo** is the same plan with PayGo enabled. "
-        "Subscription revenue is the sum of monthly list prices for users active through each month; PayGo is allocated to the user’s segment."
+        "Subscription revenue is the sum of monthly list prices for users active through each month; PayGo is allocated to the user’s segment. "
+        "**Request cost** bars are **stacked** by `model` (**mini** + **pro** + other); the y-axis is **linear** so stack heights match dollars (log scale would distort stacked segments)."
     )
 
     plan_df = compute_plan_cost_and_revenue(req_df, users_unique)
@@ -664,59 +691,84 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         plan_df = plan_df[(plan_df["total_cost"] + plan_df["total_revenue"]) > 0].copy()
     if not plan_df.empty:
         x_plans = plan_df["plan"].astype(str)
-        cost_y = plan_df["total_cost"].astype(float).to_numpy()
         rev_y = plan_df["total_revenue"].astype(float).to_numpy()
-        cost_plot = np.where(cost_y > 0, cost_y, np.nan)
         rev_plot = np.where(rev_y > 0, rev_y, np.nan)
-        _pos_p = np.concatenate([cost_y[cost_y > 0], rev_y[rev_y > 0]])
-        tick_p, text_p = _log_yaxis_money_ticks(_pos_p if _pos_p.size else np.array([1.0], dtype=float))
+        mini_y = plan_df["cost_mini"].astype(float).to_numpy()
+        pro_y = plan_df["cost_pro"].astype(float).to_numpy()
+        other_y = plan_df["cost_other"].astype(float).to_numpy()
+        total_cost_y = plan_df["total_cost"].astype(float).to_numpy()
 
-        _sp = np.concatenate([cost_plot, rev_plot])
-        _fin_p = _sp[np.isfinite(_sp) & (_sp > 0)]
-        if _fin_p.size:
-            p_lo, p_hi = float(_fin_p.min()), float(_fin_p.max())
-        else:
-            p_lo, p_hi = 1.0, 10.0
-        _plan_bar_base = _log_bar_base(p_lo)
+        _bars: list[go.Bar] = [
+            go.Bar(
+                name="Total revenue",
+                legendgroup="rev",
+                x=x_plans,
+                y=rev_plot,
+                offsetgroup="revenue",
+                marker_color="#42A5F5",
+            ),
+            go.Bar(
+                name="Request cost — mini",
+                legendgroup="cost",
+                x=x_plans,
+                y=mini_y,
+                offsetgroup="cost",
+                stackgroup="request_cost",
+                stackgaps=False,
+                marker_color="#78909C",
+            ),
+            go.Bar(
+                name="Request cost — pro",
+                legendgroup="cost",
+                x=x_plans,
+                y=pro_y,
+                offsetgroup="cost",
+                stackgroup="request_cost",
+                stackgaps=False,
+                marker_color="#EF5350",
+            ),
+        ]
+        if float(other_y.sum()) > 0.0:
+            _bars.append(
+                go.Bar(
+                    name="Request cost — other models",
+                    legendgroup="cost",
+                    x=x_plans,
+                    y=other_y,
+                    offsetgroup="cost",
+                    stackgroup="request_cost",
+                    stackgaps=False,
+                    marker_color="#BDBDBD",
+                )
+            )
 
-        fig_plan = go.Figure(
-            data=[
-                go.Bar(
-                    name="Total revenue",
-                    x=x_plans,
-                    y=rev_plot,
-                    base=_plan_bar_base,
-                    marker_color="#42A5F5",
-                ),
-                go.Bar(
-                    name="Total request cost",
-                    x=x_plans,
-                    y=cost_plot,
-                    base=_plan_bar_base,
-                    marker_color="#EF5350",
-                ),
-            ]
+        fig_plan = go.Figure(data=_bars)
+        y_top = float(
+            max(
+                np.nanmax(rev_plot) if np.any(np.isfinite(rev_plot)) else 0.0,
+                float(np.max(total_cost_y)) if len(total_cost_y) else 0.0,
+                1.0,
+            )
+            * 1.12
         )
         fig_plan.update_layout(
             barmode="group",
             template="plotly_dark",
-            height=460,
+            height=500,
             margin=dict(t=40, b=40),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
             xaxis=dict(
                 type="category",
                 title="User plan",
                 categoryorder="array",
                 categoryarray=x_plans.tolist(),
             ),
-            yaxis_title="USD (cost/revenue)",
+            yaxis_title="USD (cost/revenue), linear scale",
         )
         fig_plan.update_yaxes(
-            type="log",
-            tickmode="array",
-            tickvals=tick_p,
-            ticktext=text_p,
-            range=_plotly_log_y_range(p_lo, p_hi, tick_p),
+            range=[0.0, y_top],
+            tickprefix="$",
+            tickformat=",.0f",
         )
         st.plotly_chart(fig_plan, use_container_width=True)
 
