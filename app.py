@@ -714,7 +714,6 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
                 y=mini_y,
                 offsetgroup="cost",
                 stackgroup="request_cost",
-                stackgaps=False,
                 marker_color="#78909C",
             ),
             go.Bar(
@@ -724,7 +723,6 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
                 y=pro_y,
                 offsetgroup="cost",
                 stackgroup="request_cost",
-                stackgaps=False,
                 marker_color="#EF5350",
             ),
         ]
@@ -737,7 +735,6 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
                     y=other_y,
                     offsetgroup="cost",
                     stackgroup="request_cost",
-                    stackgaps=False,
                     marker_color="#BDBDBD",
                 )
             )
