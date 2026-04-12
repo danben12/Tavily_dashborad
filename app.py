@@ -342,10 +342,10 @@ if page == "Product Analysis":
     _h_prod["user_id"] = _h_prod["user_id"].astype(int)
     _h_prod = _h_prod[_h_prod["user_id"].isin(_cohort_set_prod)]
 
-    _chart_row_h = 340
+    _chart_top_h = 380
 
-    _c1, _c2, _c3 = st.columns(3)
-    with _c1:
+    _c_top_l, _c_top_r = st.columns(2)
+    with _c_top_l:
         st.markdown("### Research API: unique users per day")
         st.caption(
             "Count of **distinct user_id** with at least one research request on each calendar day (UTC). "
@@ -378,15 +378,15 @@ if page == "Product Analysis":
                 fig_dau.update_layout(
                     xaxis_title="Date (UTC)",
                     yaxis_title="Unique users",
-                    height=_chart_row_h,
-                    margin=dict(t=16, b=40, l=44, r=12),
+                    height=_chart_top_h,
+                    margin=dict(t=16, b=48, l=52, r=16),
                     showlegend=False,
                     xaxis=dict(gridcolor="rgba(148,163,184,0.25)", tickangle=-35),
                     yaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
                 )
                 st.plotly_chart(fig_dau, use_container_width=True)
 
-    with _c2:
+    with _c_top_r:
         st.markdown("### Monetization (Research API cohort)")
         st.caption(
             "Users who appear in research_requests, matched to users.csv: **Monetized** (non-researcher plan or PayGo) "
@@ -409,55 +409,54 @@ if page == "Product Analysis":
             )
             fig_donut.update_layout(
                 showlegend=True,
-                height=_chart_row_h,
-                margin=dict(t=16, b=16, l=8, r=8),
+                height=_chart_top_h,
+                margin=dict(t=16, b=20, l=12, r=12),
                 legend=dict(
                     font=dict(color="#e2e8f0", size=11),
                     orientation="h",
                     yanchor="bottom",
-                    y=-0.22,
+                    y=-0.2,
                     xanchor="center",
                     x=0.5,
                 ),
             )
             st.plotly_chart(fig_donut, use_container_width=True)
 
-    with _c3:
-        st.markdown("### Query is still the Backbone for Research Users")
-        st.caption("Total request volume in hourly_usage for the Research API cohort, by request type.")
-        if _h_prod.empty or "request_type" not in _h_prod.columns:
-            st.info("No hourly usage for cohort users.")
-        else:
-            _vol = (
-                _h_prod.groupby("request_type", observed=True)["request_count"]
-                .sum()
-                .sort_values(ascending=True)
+    st.markdown("### Query is still the Backbone for Research Users")
+    st.caption("Total request volume in hourly_usage for the Research API cohort, by request type.")
+    if _h_prod.empty or "request_type" not in _h_prod.columns:
+        st.info("No hourly usage for cohort users.")
+    else:
+        _vol = (
+            _h_prod.groupby("request_type", observed=True)["request_count"]
+            .sum()
+            .sort_values(ascending=True)
+        )
+        _lbls = _vol.index.astype(str)
+        _fill = []
+        _line = []
+        for _lb in _lbls:
+            _is_res = _lb.lower().strip() == "research"
+            _fill.append("#ea580c" if _is_res else "#ffffff")
+            _line.append("#c2410c" if _is_res else "#94a3b8")
+        fig_bar = go.Figure(
+            go.Bar(
+                x=_vol.values,
+                y=_lbls,
+                orientation="h",
+                marker=dict(color=_fill, line=dict(color=_line, width=1)),
+                hovertemplate="%{y}<br>%{x:,.0f} requests<extra></extra>",
             )
-            _lbls = _vol.index.astype(str)
-            _fill = []
-            _line = []
-            for _lb in _lbls:
-                _is_res = _lb.lower().strip() == "research"
-                _fill.append("#ea580c" if _is_res else "#ffffff")
-                _line.append("#c2410c" if _is_res else "#94a3b8")
-            fig_bar = go.Figure(
-                go.Bar(
-                    x=_vol.values,
-                    y=_lbls,
-                    orientation="h",
-                    marker=dict(color=_fill, line=dict(color=_line, width=1)),
-                    hovertemplate="%{y}<br>%{x:,.0f} requests<extra></extra>",
-                )
-            )
-            fig_bar.update_layout(
-                xaxis_title="Total requests",
-                yaxis_title="",
-                height=_chart_row_h,
-                margin=dict(t=16, b=40, l=72, r=12),
-                xaxis=dict(showgrid=True, gridcolor="rgba(148,163,184,0.28)"),
-                yaxis=dict(showgrid=False),
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
+        )
+        fig_bar.update_layout(
+            xaxis_title="Total requests (sum of request_count)",
+            yaxis_title="",
+            height=400,
+            margin=dict(t=16, b=48, l=120, r=24),
+            xaxis=dict(showgrid=True, gridcolor="rgba(148,163,184,0.28)"),
+            yaxis=dict(showgrid=False),
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
 
     _pareto_pct = _research_pareto_pct_curve(df_research)
     st.markdown("### Research requests vs users (Pareto)")
