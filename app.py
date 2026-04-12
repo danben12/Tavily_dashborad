@@ -503,7 +503,7 @@ if page == "Product Analysis":
                 height=420,
                 margin=dict(t=56, b=48, l=56, r=24),
                 xaxis=dict(type="category", gridcolor="rgba(148,163,184,0.25)"),
-                yaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
+                yaxis=dict(type="log", gridcolor="rgba(148,163,184,0.25)"),
             )
             fig_stick.update_traces(
                 hovertemplate="Days active: %{x}<br>Users: %{y:,}<extra></extra>",
