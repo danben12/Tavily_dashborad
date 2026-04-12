@@ -217,6 +217,20 @@ def _user_monetized_row(plan: object, has_paygo: object) -> bool:
     return bool(p) and p != "researcher"
 
 
+def _format_compact_amount(value: float) -> str:
+    """One-decimal compact display with M / K suffix (e.g. 9.7 M, 12.4 K)."""
+    if value is None or not np.isfinite(value):
+        return "—"
+    x = float(value)
+    ax = abs(x)
+    sign = "-" if x < 0 else ""
+    if ax >= 1_000_000:
+        return f"{sign}{ax / 1_000_000:.1f} M"
+    if ax >= 1_000:
+        return f"{sign}{ax / 1_000:.1f} K"
+    return f"{sign}{ax:,.0f}"
+
+
 # -----------------------------------------------------------------------------
 # Sidebar
 # -----------------------------------------------------------------------------
@@ -468,7 +482,11 @@ elif page == "Product Analysis":
         n_success = int((_st_r == "success").sum())
     pct_reliability = (100.0 * n_success / n_rel) if n_rel else 0.0
 
-    m1, m2, m3 = st.columns(3)
+    total_api_cost = 0.0
+    if "request_cost" in df_research.columns:
+        total_api_cost = float(pd.to_numeric(df_research["request_cost"], errors="coerce").fillna(0).sum())
+
+    m1, m2, m3, m4 = st.columns(4)
     with m1:
         st.metric(
             "Unique users (Research API)",
@@ -501,6 +519,12 @@ elif page == "Product Analysis":
             "Overall research reliability",
             f"{pct_reliability:.1f}%",
             help="Share of research_requests rows where status is `success` (empty/missing counts as non-success).",
+        )
+    with m4:
+        st.metric(
+            "Total API cost",
+            _format_compact_amount(total_api_cost),
+            help="Sum of `request_cost` across all rows in research_requests (this extract).",
         )
 
     _pareto_pct = _research_pareto_pct_curve(df_research)
