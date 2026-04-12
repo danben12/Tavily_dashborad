@@ -273,15 +273,7 @@ if page == "Overview: Research User Profile":
         )
     pct_monetized = (100.0 * n_monetized / n_users_joined) if n_users_joined else 0.0
 
-    # 4) Research reliability (% success rows)
-    n_rel = len(df_research)
-    n_success = 0
-    if n_rel and "status" in df_research.columns:
-        st_r = df_research["status"].fillna("").astype(str).str.lower().str.strip()
-        n_success = int((st_r == "success").sum())
-    pct_reliability = (100.0 * n_success / n_rel) if n_rel else 0.0
-
-    k1, k2, k3, k4 = st.columns(4)
+    k1, k2, k3 = st.columns(3)
     with k1:
         st.metric("Research cohort size", f"{n_cohort:,}", help="Distinct user_id in research_requests.")
     with k2:
@@ -295,12 +287,6 @@ if page == "Overview: Research User Profile":
             "Cohort monetization",
             f"{pct_monetized:.1f}%",
             help="Share of cohort users in users.csv on a non-researcher plan or with Pay-as-you-go.",
-        )
-    with k4:
-        st.metric(
-            "Overall research reliability",
-            f"{pct_reliability:.1f}%",
-            help="Share of research_requests rows where status is `success` (empty/missing counts as non-success).",
         )
 
     if n_with_hourly < n_cohort:
@@ -475,7 +461,14 @@ elif page == "Product Analysis":
     pct_of_post_launch = (
         (100.0 * n_research_first / n_joined_after_research) if n_joined_after_research else 0.0
     )
-    m1, m2 = st.columns(2)
+    n_rel = len(df_research)
+    n_success = 0
+    if n_rel and "status" in df_research.columns:
+        _st_r = df_research["status"].fillna("").astype(str).str.lower().str.strip()
+        n_success = int((_st_r == "success").sum())
+    pct_reliability = (100.0 * n_success / n_rel) if n_rel else 0.0
+
+    m1, m2, m3 = st.columns(3)
     with m1:
         st.metric(
             "Unique users (Research API)",
@@ -503,6 +496,12 @@ elif page == "Product Analysis":
             help="Delta: % of users who signed up after Research appeared in data (earliest research_requests row).",
         )
         st.caption("Joined after Research API launch; first hourly request is Research.")
+    with m3:
+        st.metric(
+            "Overall research reliability",
+            f"{pct_reliability:.1f}%",
+            help="Share of research_requests rows where status is `success` (empty/missing counts as non-success).",
+        )
 
     _pareto_pct = _research_pareto_pct_curve(df_research)
     st.markdown("### Research requests vs users (Pareto)")
