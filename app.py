@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.io as pio
 import streamlit as st
 
 # -----------------------------------------------------------------------------
@@ -21,6 +22,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# Match Streamlit dark UI: light axes/labels, dark plot surface (see .streamlit/config.toml).
+pio.templates.default = "plotly_dark"
 
 BASE_DIR = Path(__file__).resolve().parent
 PARENT_DIR = BASE_DIR.parent
@@ -355,8 +359,8 @@ if page == "Overview: Research User Profile":
                 height=420,
                 margin=dict(t=24, b=48, l=56, r=24),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
+                xaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
+                yaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
             )
             st.plotly_chart(fig_ma, use_container_width=True)
 
@@ -388,8 +392,8 @@ if page == "Overview: Research User Profile":
                 height=420,
                 margin=dict(t=24, b=48, l=56, r=24),
                 showlegend=False,
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
+                xaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
+                yaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
             )
             st.plotly_chart(fig_area, use_container_width=True)
 
@@ -441,7 +445,7 @@ elif page == "Product Analysis":
             <style>
             div[data-testid="stHorizontalBlock"] div[data-testid="column"]:nth-child(2)
             div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-                color: #15803d !important;
+                color: #4ade80 !important;
             }
             </style>
             """,
@@ -507,7 +511,7 @@ elif page == "Product Analysis":
             showlegend=True,
             height=400,
             margin=dict(t=24, b=24, l=24, r=24),
-            paper_bgcolor="rgba(0,0,0,0)",
+            legend=dict(font=dict(color="#e2e8f0")),
         )
         st.plotly_chart(fig_donut, use_container_width=True)
 
@@ -545,9 +549,8 @@ elif page == "Product Analysis":
             yaxis_title="",
             height=400,
             margin=dict(t=24, b=48, l=120, r=24),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            xaxis=dict(showgrid=True, gridcolor="rgba(148,163,184,0.35)"),
+            xaxis=dict(showgrid=True, gridcolor="rgba(148,163,184,0.28)"),
+            yaxis=dict(showgrid=False),
         )
         st.plotly_chart(fig_bar, use_container_width=True)
 
@@ -586,13 +589,21 @@ elif page == "Product Analysis":
         fig_par.update_layout(
             xaxis_title="Cumulative % of users (by request volume rank)",
             yaxis_title="Cumulative % of research requests",
-            xaxis=dict(range=[0, 100], dtick=10, ticksuffix="%"),
-            yaxis=dict(range=[0, 100], dtick=10, ticksuffix="%"),
+            xaxis=dict(
+                range=[0, 100],
+                dtick=10,
+                ticksuffix="%",
+                gridcolor="rgba(148,163,184,0.25)",
+            ),
+            yaxis=dict(
+                range=[0, 100],
+                dtick=10,
+                ticksuffix="%",
+                gridcolor="rgba(148,163,184,0.25)",
+            ),
             height=460,
             margin=dict(t=32, b=48, l=56, r=24),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
         )
         st.plotly_chart(fig_par, use_container_width=True)
 
