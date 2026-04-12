@@ -218,17 +218,17 @@ def _user_monetized_row(plan: object, has_paygo: object) -> bool:
 
 
 def _format_compact_amount(value: float) -> str:
-    """One-decimal compact display with M / K suffix (e.g. 9.7 M, 12.4 K)."""
+    """One-decimal USD display with M / K suffix (e.g. $9.7 M, $12.4 K)."""
     if value is None or not np.isfinite(value):
         return "—"
     x = float(value)
     ax = abs(x)
     sign = "-" if x < 0 else ""
     if ax >= 1_000_000:
-        return f"{sign}{ax / 1_000_000:.1f} M"
+        return f"{sign}${ax / 1_000_000:.1f} M"
     if ax >= 1_000:
-        return f"{sign}{ax / 1_000:.1f} K"
-    return f"{sign}{ax:,.0f}"
+        return f"{sign}${ax / 1_000:.1f} K"
+    return f"{sign}${ax:,.0f}"
 
 
 # -----------------------------------------------------------------------------
