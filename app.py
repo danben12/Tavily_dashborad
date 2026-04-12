@@ -304,7 +304,7 @@ def _plan_norm(series: pd.Series) -> pd.Series:
 
 
 # Split ``researcher`` into free vs PayGo for plan-level economics charts.
-PLAN_BUCKET_FREE = "Simple free tier"
+PLAN_BUCKET_FREE = "Researcher (non-PayGo)"
 PLAN_BUCKET_RESEARCHER_PAYGO = "Researcher with PayGo"
 
 
@@ -678,7 +678,7 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
     st.subheader("Resource allocation and cost controls")
     st.markdown(
         "Compare cumulative **request cost** to modeled revenue **by billing segment**. "
-        "**Simple free tier** is `plan == researcher` with `has_paygo == False`; **Researcher with PayGo** is the same plan with PayGo enabled. "
+        "**Researcher (non-PayGo)** is `plan == researcher` with `has_paygo == False`; **Researcher with PayGo** is the same plan with PayGo enabled. "
         "Subscription revenue is the sum of monthly list prices for users active through each month; PayGo is allocated to the user’s segment. "
         "**Request cost** is shown as **separate grouped bars** per `model` (**mini**, **pro**, other) plus a **total request cost** bar (same height as the sum of the model bars) so scale is easy to read on a log axis. "
         "Y-axis formatting matches the monthly chart: **log scale**, **K / M tick labels**, and a **bar base** one decade below the smallest positive value."
