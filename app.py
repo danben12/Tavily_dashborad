@@ -364,7 +364,7 @@ def compute_monthly_financials(
         rows.append(
             {
                 "period": per,
-                "period_label": str(per),
+                "period_label": per.strftime("%b %Y"),
                 "month_cost": month_cost,
                 "paygo_revenue": paygo_rev,
                 "subscription_revenue": sub_rev,
@@ -604,7 +604,7 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
             x=monthly["period_label"],
             y=cost_plot,
             base=_bar_base,
-            name="Request cost",
+            name="Total request cost",
             marker_color="#EF5350",
         )
     )
@@ -614,8 +614,8 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         height=440,
         margin=dict(t=40, b=40),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        xaxis_title="Month",
-        yaxis_title="USD (log scale, K / M)",
+        xaxis=dict(type="category", title="Month", categoryorder="array", categoryarray=monthly["period_label"].tolist()),
+        yaxis_title="USD (cost/revenue)",
     )
     fig_trend.update_yaxes(
         type="log",
