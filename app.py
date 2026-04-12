@@ -680,7 +680,8 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         "Compare cumulative **request cost** to modeled revenue **by billing segment**. "
         "**Simple free tier** is `plan == researcher` with `has_paygo == False`; **Researcher with PayGo** is the same plan with PayGo enabled. "
         "Subscription revenue is the sum of monthly list prices for users active through each month; PayGo is allocated to the user’s segment. "
-        "**Request cost** bars are **stacked** by `model` (**mini** + **pro** + other); the y-axis is **linear** so stack heights match dollars (log scale would distort stacked segments)."
+        "**Request cost** bars are **stacked** by `model` (**mini** + **pro** + other). "
+        "The y-axis is **log**; bars use a **$1 floor** so segments stay above zero (negligible vs. M-scale costs)."
     )
 
     plan_df = compute_plan_cost_and_revenue(req_df, users_unique)
@@ -697,16 +698,22 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         pro_y = plan_df["cost_pro"].astype(float).to_numpy()
         other_y = plan_df["cost_other"].astype(float).to_numpy()
         total_cost_y = plan_df["total_cost"].astype(float).to_numpy()
-        # Plotly 6 removed ``stackgroup`` on Bar; stack with explicit ``base`` (works 5.x + 6.x).
-        base_pro = mini_y
-        base_other = mini_y + pro_y
+        # Log y-axis: bars cannot start at 0. Use a $1 floor; stack cumulatively from it (Plotly 6: explicit base).
+        _log_floor = 1.0
+        c0 = np.full_like(mini_y, _log_floor, dtype=float)
+        c1 = c0 + mini_y
+        c2 = c1 + pro_y
+        c3 = c2 + other_y
+        base_rev = np.where(np.isfinite(rev_plot), _log_floor, np.nan)
+        y_rev_top = np.where(np.isfinite(rev_plot), rev_plot + _log_floor, np.nan)
 
         _bars: list[go.Bar] = [
             go.Bar(
                 name="Total revenue",
                 legendgroup="rev",
                 x=x_plans,
-                y=rev_plot,
+                y=y_rev_top,
+                base=base_rev,
                 offsetgroup="revenue",
                 marker_color="#42A5F5",
             ),
@@ -714,7 +721,8 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
                 name="Request cost - mini",
                 legendgroup="cost",
                 x=x_plans,
-                y=mini_y,
+                y=c1,
+                base=c0,
                 offsetgroup="cost",
                 marker_color="#78909C",
             ),
@@ -722,8 +730,8 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
                 name="Request cost - pro",
                 legendgroup="cost",
                 x=x_plans,
-                y=pro_y,
-                base=base_pro,
+                y=c2,
+                base=c1,
                 offsetgroup="cost",
                 marker_color="#EF5350",
             ),
@@ -734,22 +742,28 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
                     name="Request cost - other models",
                     legendgroup="cost",
                     x=x_plans,
-                    y=other_y,
-                    base=base_other,
+                    y=c3,
+                    base=c2,
                     offsetgroup="cost",
                     marker_color="#BDBDBD",
                 )
             )
 
         fig_plan = go.Figure(data=_bars)
-        y_top = float(
-            max(
-                np.nanmax(rev_plot) if np.any(np.isfinite(rev_plot)) else 0.0,
-                float(np.max(total_cost_y)) if len(total_cost_y) else 0.0,
-                1.0,
-            )
-            * 1.12
+        _tops = np.concatenate(
+            [
+                y_rev_top[np.isfinite(y_rev_top)],
+                c3 if float(other_y.sum()) > 0.0 else c2,
+            ]
         )
+        if _tops.size == 0:
+            p_lo, p_hi = 1.0, 10.0
+        else:
+            p_lo = float(np.min(_tops))
+            p_hi = float(np.max(_tops))
+        p_lo = min(p_lo, _log_floor)
+        tick_p, text_p = _log_yaxis_money_ticks(_tops if _tops.size else np.array([_log_floor], dtype=float))
+
         fig_plan.update_layout(
             barmode="group",
             template="plotly_dark",
@@ -762,12 +776,14 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
                 categoryorder="array",
                 categoryarray=x_plans.tolist(),
             ),
-            yaxis_title="USD (cost/revenue), linear scale",
+            yaxis_title="USD (cost/revenue), log scale",
         )
         fig_plan.update_yaxes(
-            range=[0.0, y_top],
-            tickprefix="$",
-            tickformat=",.0f",
+            type="log",
+            tickmode="array",
+            tickvals=tick_p,
+            ticktext=text_p,
+            range=_plotly_log_y_range(p_lo, p_hi, tick_p),
         )
         st.plotly_chart(fig_plan, use_container_width=True)
 
