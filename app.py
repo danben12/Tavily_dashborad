@@ -128,6 +128,47 @@ if _agg:
 else:
     df_users_unique = _u.drop_duplicates(subset=["user_id"])
 
+
+def _count_research_first_hourly_after_first_research_ts(
+    users_unique: pd.DataFrame,
+    hourly: pd.DataFrame,
+    research: pd.DataFrame,
+) -> int:
+    """Users with created_at after the earliest research_requests timestamp whose first hourly row is Research."""
+    if research.empty or "timestamp" not in research.columns:
+        return 0
+    if not {"user_id", "created_at"}.issubset(users_unique.columns):
+        return 0
+    if not {"user_id", "hour", "request_type"}.issubset(hourly.columns):
+        return 0
+
+    first_rs = research["timestamp"].dropna().min()
+    if pd.isna(first_rs):
+        return 0
+    first_rs = pd.Timestamp(first_rs)
+    if first_rs.tzinfo is None:
+        first_rs = first_rs.tz_localize("UTC")
+    else:
+        first_rs = first_rs.tz_convert("UTC")
+
+    u = users_unique.dropna(subset=["user_id", "created_at"]).copy()
+    u["user_id"] = u["user_id"].astype(int)
+    created = pd.to_datetime(u["created_at"], utc=True, errors="coerce")
+    cohort = u.loc[created.notna() & (created > first_rs), "user_id"].unique()
+    if len(cohort) == 0:
+        return 0
+
+    h = hourly.dropna(subset=["hour", "user_id"]).copy()
+    h["user_id"] = h["user_id"].astype(int)
+    h = h[h["user_id"].isin(cohort)]
+    if h.empty:
+        return 0
+    h = h.sort_values("hour")
+    first = h.groupby("user_id", sort=False).first()
+    rt = first["request_type"].fillna("").astype(str).str.lower().str.strip()
+    return int((rt == "research").sum())
+
+
 # -----------------------------------------------------------------------------
 # Sidebar
 # -----------------------------------------------------------------------------
@@ -163,14 +204,25 @@ elif page == "Product Analysis":
         )
     else:
         n_research_users_rq = 0
-    st.metric(
-        "Unique users (Research API)",
-        f"{n_research_users_rq:,}",
-        help=(
-            "Count of distinct `user_id` in **research_requests.csv** (sampled research endpoint requests). "
-            "One row per completed request in the extract—not deduplicated by session."
-        ),
+    n_research_first_cohort = _count_research_first_hourly_after_first_research_ts(
+        df_users_unique, df_hourly, df_research
     )
+    m1, m2 = st.columns(2)
+    with m1:
+        st.metric(
+            "Unique users (Research API)",
+            f"{n_research_users_rq:,}",
+            help="Distinct user_id in research_requests.csv.",
+        )
+    with m2:
+        st.metric(
+            "Research-first (joined after first research in extract)",
+            f"{n_research_first_cohort:,}",
+            help=(
+                "Users with created_at **after** the **earliest** timestamp in research_requests.csv; "
+                "among those, count where the **first** hourly_usage row (by hour) has request_type **research**."
+            ),
+        )
     st.info(
         "Additional Part 1 sections (questions, hypotheses, KPIs, visuals) will be added here. "
         "Hourly usage and user metadata remain available from `load_data()`."
