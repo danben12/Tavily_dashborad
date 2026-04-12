@@ -263,7 +263,7 @@ if page == "Product Analysis":
     else:
         n_research_users_rq = 0
     st.info(
-        "**Methodological Note:** This dashboard presents a simple analysis of the 16,333 users who interacted "
+        "**Methodological Note:** This dashboard presents an analysis of the 16,333 users who interacted "
         "with the Research API."
     )
     n_research_first, n_joined_after_research = _research_first_after_launch_metrics(
