@@ -238,6 +238,20 @@ def _format_currency_compact(value: float) -> str:
     return _format_currency_usd(value)
 
 
+def _log_yaxis_money_ticks(positive_values: np.ndarray) -> tuple[list[float], list[str]]:
+    """Powers-of-ten tick positions and K/M labels for a log-scaled currency axis."""
+    v = positive_values[np.isfinite(positive_values) & (positive_values > 0)]
+    if v.size == 0:
+        ticks = [1.0, 10.0, 100.0, 1000.0, 10_000.0, 100_000.0, 1_000_000.0]
+        return ticks, [_format_currency_usd(float(t)) for t in ticks]
+    lo = int(np.floor(np.log10(float(v.min()))))
+    hi = int(np.ceil(np.log10(float(v.max()))))
+    lo = max(lo, -3)
+    hi = min(hi, 12)
+    ticks = [10**i for i in range(lo, hi + 1)]
+    return ticks, [_format_currency_usd(float(t)) for t in ticks]
+
+
 # Pricing assumptions (monthly subscription list price, USD). No hardcoded revenue totals.
 PAYGO_USD_PER_CREDIT = 0.008
 PLAN_MONTHLY_USD: dict[str, float] = {
@@ -469,7 +483,7 @@ def render_pricing_model_reference_expander() -> None:
 
 **Pay-as-you-go:** **$0.008** per credit used (`credits_used` on each request).
 
-Subscription revenue is modeled as the sum of each active subscriber’s monthly list price for every month in which their `created_at` is on or before that month-end (MRR-style snapshot). PayGo revenue is request-level credits × **$0.008** for users with `has_paygo == True`. Infrastructure cost is the sum of `request_cost` (nominal units as provided in the extract).
+Subscription revenue is modeled as the sum of each active subscriber’s monthly list price for every month in which their `created_at` is on or before that month-end (MRR-style snapshot). PayGo revenue is request-level credits × **$0.008** for users with `has_paygo == True`. **Request cost** is the sum of `request_cost` (nominal units as provided in the extract).
             """
         )
 
@@ -503,7 +517,7 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         )
     with k2:
         st.metric(
-            "All-time infrastructure cost",
+            "All-time request cost",
             _format_currency_usd(total_cost),
             help="Sum of `request_cost` over the same months.",
         )
@@ -511,44 +525,61 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         st.metric(
             "Net position (profit / burn)",
             _format_currency_usd(net),
-            help="Revenue minus infrastructure cost in nominal `request_cost` units.",
+            help="Revenue minus request cost in nominal `request_cost` units.",
         )
 
-    st.subheader("Monthly revenue vs. infrastructure cost")
+    st.subheader("Monthly revenue vs. request cost")
+    rev_y = monthly["total_revenue"].astype(float).to_numpy()
+    cost_y = monthly["month_cost"].astype(float).to_numpy()
+    rev_plot = np.where(rev_y > 0, rev_y, np.nan)
+    cost_plot = np.where(cost_y > 0, cost_y, np.nan)
+    _pos = np.concatenate([rev_y[rev_y > 0], cost_y[cost_y > 0]])
+    tick_vals, tick_text = _log_yaxis_money_ticks(_pos if _pos.size else np.array([1.0], dtype=float))
+
     fig_trend = go.Figure()
     fig_trend.add_trace(
-        go.Scatter(
+        go.Bar(
             x=monthly["period_label"],
-            y=monthly["total_revenue"],
+            y=rev_plot,
             name="Total revenue",
-            mode="lines+markers",
-            line=dict(color="#42A5F5", width=2.5),
+            marker_color="#42A5F5",
         )
     )
     fig_trend.add_trace(
-        go.Scatter(
+        go.Bar(
             x=monthly["period_label"],
-            y=monthly["month_cost"],
-            name="Infrastructure cost",
-            mode="lines+markers",
-            line=dict(color="#EF5350", width=2.5),
+            y=cost_plot,
+            name="Request cost",
+            marker_color="#EF5350",
         )
     )
     fig_trend.update_layout(
         template="plotly_dark",
+        barmode="group",
         height=440,
         margin=dict(t=40, b=40),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        yaxis_tickformat=",.0f",
-        yaxis_title="USD (nominal)",
         xaxis_title="Month",
+        yaxis_title="USD (log scale, K / M)",
     )
-    fig_trend.update_yaxes(tickprefix="$")
+    _stack = np.concatenate([rev_plot, cost_plot])
+    _finite = _stack[np.isfinite(_stack) & (_stack > 0)]
+    if _finite.size:
+        y_lo, y_hi = float(_finite.min()), float(_finite.max())
+    else:
+        y_lo, y_hi = 1.0, 10.0
+    fig_trend.update_yaxes(
+        type="log",
+        tickmode="array",
+        tickvals=tick_vals,
+        ticktext=tick_text,
+        range=[max(y_lo * 0.5, 1e-6), y_hi * 2.5],
+    )
     st.plotly_chart(fig_trend, use_container_width=True)
 
     st.subheader("Resource allocation and cost controls")
     st.markdown(
-        "Compare cumulative infrastructure spend to modeled revenue **by billing plan**. "
+        "Compare cumulative **request cost** to modeled revenue **by billing plan**. "
         "Subscription revenue here is the sum of monthly plan fees for users active through each month; "
         "PayGo is allocated to the user’s plan bucket."
     )
@@ -558,7 +589,7 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         fig_plan = go.Figure(
             data=[
                 go.Bar(
-                    name="Infrastructure cost",
+                    name="Request cost",
                     x=plan_df["plan"],
                     y=plan_df["total_cost"],
                     marker_color="#C62828",
@@ -596,7 +627,7 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
         st.metric("Requests in cohort", f"{leak['n_requests']:,}")
     with c3:
         st.metric(
-            "Cohort infrastructure cost",
+            "Cohort request cost",
             _format_currency_usd(leak["actual_cost"]),
             help="Sum of `request_cost` for this cohort.",
         )
