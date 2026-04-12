@@ -567,21 +567,22 @@ if page == "Overview":
                     "Series starts on the **first day with traffic**; the level includes users who signed up **before** that day."
                 )
 
-    if not _rev_spend.empty:
-        st.markdown("### Monthly revenue vs platform spend (USD)")
+    _rev_spend_chart = _rev_spend[_rev_spend["month"] >= REVENUE_MEAN_SINCE_UTC].copy()
+    if not _rev_spend_chart.empty:
+        st.markdown("### Monthly revenue vs platform spend (USD, from Nov 2025)")
         fig_rs = go.Figure(
             data=[
                 go.Bar(
                     name="Revenue",
-                    x=_rev_spend["month"],
-                    y=_rev_spend["revenue_usd"],
+                    x=_rev_spend_chart["month"],
+                    y=_rev_spend_chart["revenue_usd"],
                     marker_color="#059669",
                     hovertemplate="Revenue: $%{y:,.0f}<extra></extra>",
                 ),
                 go.Bar(
                     name="Spend",
-                    x=_rev_spend["month"],
-                    y=_rev_spend["spend_usd"],
+                    x=_rev_spend_chart["month"],
+                    y=_rev_spend_chart["spend_usd"],
                     marker_color="#6366f1",
                     hovertemplate="Spend: $%{y:,.0f}<extra></extra>",
                 ),
@@ -603,10 +604,11 @@ if page == "Overview":
         fig_rs.update_xaxes(tickformat="%b %Y")
         st.plotly_chart(fig_rs, use_container_width=True)
         st.caption(
-            "Revenue = PayGo (`paygo_credits_used` × $0.008/credit) plus fixed monthly plan fees for every user "
-            "who had signed up before that month (Project $30, Bootstrap $100, Startup $220, Growth $500; "
-            "researcher/freemium $0; Enterprise/custom not priced). Each row uses the user’s **current** plan from "
-            "the extract for all months (no historical plan changes). Spend = hourly infra + model cost columns summed by month."
+            "Months shown are **Nov 2025 onward** (UTC). Revenue = PayGo (`paygo_credits_used` × $0.008/credit) plus "
+            "fixed monthly plan fees for every user who had signed up before that month (Project $30, Bootstrap $100, "
+            "Startup $220, Growth $500; researcher/freemium $0; Enterprise/custom not priced). Each row uses the user’s "
+            "**current** plan from the extract for all months (no historical plan changes). Spend = hourly infra + "
+            "model cost columns summed by month."
         )
 
 # -----------------------------------------------------------------------------
