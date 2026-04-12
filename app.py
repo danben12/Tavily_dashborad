@@ -7,8 +7,10 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import streamlit as st
 
 # -----------------------------------------------------------------------------
@@ -185,6 +187,71 @@ def _count_post_launch_first_research_users(users_unique: pd.DataFrame, hourly: 
     return int((rt == "research").sum())
 
 
+def _research_requests_pareto_df(hourly: pd.DataFrame, n_tiers: int = 10) -> pd.DataFrame | None:
+    """Pareto table: users ranked by total research ``request_count``, then bucketed for display.
+
+    Returns columns ``label``, ``research_requests``, ``cum_pct_requests`` (0–100), ``users_in_bucket``.
+    """
+    need = {"user_id", "request_type", "request_count"}
+    if hourly.empty or not need.issubset(hourly.columns):
+        return None
+    h = hourly.dropna(subset=["user_id"]).copy()
+    h["request_type"] = h["request_type"].fillna("").astype(str).str.lower().str.strip()
+    rh = h[h["request_type"] == "research"]
+    if rh.empty:
+        return None
+    rh["request_count"] = pd.to_numeric(rh["request_count"], errors="coerce").fillna(0.0)
+    by_u = rh.groupby("user_id", as_index=False)["request_count"].sum()
+    by_u = (
+        by_u[by_u["request_count"] > 0]
+        .sort_values("request_count", ascending=False)
+        .reset_index(drop=True)
+    )
+    n = len(by_u)
+    if n == 0:
+        return None
+
+    total_req = float(by_u["request_count"].sum())
+    rows: list[dict[str, object]] = []
+
+    if n <= 25:
+        cum = 0.0
+        for i, (_, r) in enumerate(by_u.iterrows(), start=1):
+            v = float(r["request_count"])
+            cum += v
+            rows.append(
+                {
+                    "label": f"Rank {i}",
+                    "research_requests": v,
+                    "cum_pct_requests": 100.0 * cum / total_req,
+                    "users_in_bucket": 1,
+                }
+            )
+    else:
+        q = min(n_tiers, n)
+        by_u["_tier"] = pd.qcut(np.arange(n), q=q, labels=False, duplicates="drop")
+        for tid in sorted(by_u["_tier"].dropna().unique()):
+            chunk = by_u[by_u["_tier"] == tid]
+            uc = int(len(chunk))
+            req_sum = float(chunk["request_count"].sum())
+            i_lo = int(chunk.index.min()) + 1
+            i_hi = int(chunk.index.max()) + 1
+            rows.append(
+                {
+                    "label": f"Ranks {i_lo}–{i_hi} ({uc} users)",
+                    "research_requests": req_sum,
+                    "cum_pct_requests": 0.0,
+                    "users_in_bucket": uc,
+                }
+            )
+        cum = 0.0
+        for row in rows:
+            cum += float(row["research_requests"])
+            row["cum_pct_requests"] = 100.0 * cum / total_req
+
+    return pd.DataFrame(rows)
+
+
 # -----------------------------------------------------------------------------
 # Overview — placeholder (full-population story TBD)
 # -----------------------------------------------------------------------------
@@ -302,6 +369,63 @@ elif page == "Product Analysis":
                 showlegend=False,
             )
             st.plotly_chart(fig_bar, use_container_width=True)
+
+    _pareto = _research_requests_pareto_df(df_hourly)
+    st.markdown("### Research usage concentration (Pareto)")
+    if _pareto is None or _pareto.empty:
+        st.info("No research `request_type` rows with positive `request_count` for a Pareto chart.")
+    else:
+        _hru = df_hourly.dropna(subset=["user_id"]).copy()
+        _hru["_rt"] = _hru["request_type"].fillna("").astype(str).str.lower().str.strip()
+        _hru = _hru[_hru["_rt"] == "research"]
+        _hru["request_count"] = pd.to_numeric(_hru["request_count"], errors="coerce").fillna(0.0)
+        n_research_users = int((_hru.groupby("user_id")["request_count"].sum() > 0).sum())
+        st.caption(
+            f"Users with at least one research request in this extract: **{n_research_users:,}**. "
+            "Bars = research request volume per bucket (users sorted heaviest-first). "
+            "Line = cumulative share of all research requests (right axis)."
+        )
+        fig_p = make_subplots(specs=[[{"secondary_y": True}]])
+        fig_p.add_trace(
+            go.Bar(
+                x=_pareto["label"],
+                y=_pareto["research_requests"],
+                name="Research requests",
+                marker_color="#ea580c",
+                hovertemplate=(
+                    "<b>%{x}</b><br>Requests: %{y:,.0f}<br>Users in bucket: %{customdata}<extra></extra>"
+                ),
+                customdata=_pareto["users_in_bucket"],
+            ),
+            secondary_y=False,
+        )
+        fig_p.add_trace(
+            go.Scatter(
+                x=_pareto["label"],
+                y=_pareto["cum_pct_requests"],
+                name="Cumulative % of research requests",
+                mode="lines+markers",
+                line=dict(color="#2563eb", width=2),
+                marker=dict(size=8),
+                hovertemplate="Cumulative: %{y:.1f}%<extra></extra>",
+            ),
+            secondary_y=True,
+        )
+        fig_p.update_layout(
+            height=max(420, 48 * len(_pareto)),
+            margin=dict(t=40, b=120, l=56, r=56),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            xaxis=dict(tickangle=-35),
+        )
+        fig_p.update_yaxes(title_text="Research requests (sum of hourly counts)", secondary_y=False)
+        fig_p.update_yaxes(
+            title_text="Cumulative % of research requests",
+            range=[0, 100],
+            secondary_y=True,
+        )
+        st.plotly_chart(fig_p, use_container_width=True)
 
 # -----------------------------------------------------------------------------
 # Infrastructure & Cost Analysis
