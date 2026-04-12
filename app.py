@@ -157,9 +157,23 @@ if page == "Overview":
 # -----------------------------------------------------------------------------
 elif page == "Product Analysis":
     st.title("Product analysis")
+    if "user_id" in df_research.columns:
+        n_research_users_rq = int(
+            df_research.dropna(subset=["user_id"])["user_id"].astype(int).nunique()
+        )
+    else:
+        n_research_users_rq = 0
+    st.metric(
+        "Unique users (Research API)",
+        f"{n_research_users_rq:,}",
+        help=(
+            "Count of distinct `user_id` in **research_requests.csv** (sampled research endpoint requests). "
+            "One row per completed request in the extract—not deduplicated by session."
+        ),
+    )
     st.info(
-        "This page is empty while Part 1 is rebuilt (three questions, hypotheses, KPIs, and visuals per "
-        "the assignment). Data is still loaded in `load_data()` for upcoming sections."
+        "Additional Part 1 sections (questions, hypotheses, KPIs, visuals) will be added here. "
+        "Hourly usage and user metadata remain available from `load_data()`."
     )
 
 # -----------------------------------------------------------------------------
