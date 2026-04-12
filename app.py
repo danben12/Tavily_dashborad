@@ -349,8 +349,8 @@ if page == "Product Analysis":
     with _c_top_l:
         st.markdown("### Research API: unique users per day")
         st.caption(
-            "Count of **distinct user_id** with at least one research request on each calendar day (UTC). "
-            "Multiple requests the same day still count as one user."
+            "**Blue:** distinct `user_id` with ≥1 **research** request that day (`research_requests`, UTC). "
+            "**Purple:** distinct `user_id` with ≥1 **hourly_usage** row that day (any request type, UTC)—sample-wide DAU."
         )
         if not {"user_id", "timestamp"}.issubset(df_research.columns):
             st.info("research_requests is missing `user_id` or `timestamp` for this chart.")
@@ -363,25 +363,68 @@ if page == "Product Analysis":
             if _rdu.empty:
                 st.info("No valid timestamps in research_requests for this chart.")
             else:
-                _daily_u = _rdu.groupby("_day", observed=True)["user_id"].nunique().sort_index()
-                fig_dau = go.Figure(
+                _daily_research_u = _rdu.groupby("_day", observed=True)["user_id"].nunique().sort_index()
+                _daily_hourly_u = pd.Series(dtype=np.int64)
+                if {"hour", "user_id"}.issubset(df_hourly.columns):
+                    _hdu = df_hourly.dropna(subset=["hour", "user_id"]).copy()
+                    _hdu["user_id"] = _hdu["user_id"].astype(int)
+                    _hdu["_day"] = (
+                        pd.to_datetime(_hdu["hour"], utc=True, errors="coerce")
+                        .dt.normalize()
+                        .dt.tz_localize(None)
+                    )
+                    _hdu = _hdu.dropna(subset=["_day"])
+                    if not _hdu.empty:
+                        _daily_hourly_u = (
+                            _hdu.groupby("_day", observed=True)["user_id"].nunique().sort_index()
+                        )
+
+                _dau_merged = (
+                    pd.DataFrame({"research": _daily_research_u})
+                    .join(_daily_hourly_u.rename("hourly"), how="outer")
+                    .sort_index()
+                )
+
+                fig_dau = go.Figure()
+                fig_dau.add_trace(
                     go.Scatter(
-                        x=_daily_u.index,
-                        y=_daily_u.values,
+                        x=_dau_merged.index,
+                        y=_dau_merged["research"],
                         mode="lines",
                         line=dict(color="#38bdf8", width=2.2),
                         fill="tozeroy",
                         fillcolor="rgba(56, 189, 248, 0.18)",
-                        name="Unique users",
-                        hovertemplate="%{x|%Y-%m-%d}<br>%{y:,} users<extra></extra>",
+                        name="Research API",
+                        connectgaps=False,
+                        hovertemplate="Research API<br>%{x|%Y-%m-%d}<br>%{y:,} users<extra></extra>",
                     )
                 )
+                if _daily_hourly_u.size > 0:
+                    fig_dau.add_trace(
+                        go.Scatter(
+                            x=_dau_merged.index,
+                            y=_dau_merged["hourly"],
+                            mode="lines",
+                            line=dict(color="#a78bfa", width=2, dash="solid"),
+                            name="Hourly usage (all types)",
+                            connectgaps=False,
+                            hovertemplate="Hourly (any product)<br>%{x|%Y-%m-%d}<br>%{y:,} users<extra></extra>",
+                        )
+                    )
                 fig_dau.update_layout(
                     xaxis_title="Date (UTC)",
                     yaxis_title="Unique users",
                     height=_chart_top_h,
                     margin=dict(t=16, b=48, l=52, r=16),
-                    showlegend=False,
+                    showlegend=True,
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="left",
+                        x=0,
+                        font=dict(size=11),
+                    ),
                     xaxis=dict(gridcolor="rgba(148,163,184,0.25)", tickangle=-35),
                     yaxis=dict(gridcolor="rgba(148,163,184,0.25)"),
                 )
