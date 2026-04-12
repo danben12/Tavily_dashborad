@@ -640,33 +640,24 @@ def render_product_analytics_dashboard(req_df: pd.DataFrame, users_unique: pd.Da
     wasted_disp = leak["wasted_pro_cost"]
 
     st.markdown("**Strictly free cohort** — `plan == researcher` and `has_paygo == False`.")
-    c1, c2, c3 = st.columns(3)
-    with c1:
+    k_u, k_r, k_c, k_w, k_s = st.columns(5)
+    with k_u:
         st.metric("Users in cohort", f"{leak['n_users']:,}")
-    with c2:
+    with k_r:
         st.metric("Requests in cohort", f"{leak['n_requests']:,}")
-    with c3:
+    with k_c:
         st.metric(
             "Cohort request cost",
             _format_currency_usd(leak["actual_cost"]),
             help="Sum of `request_cost` for this cohort.",
         )
-
-    st.warning(
-        "**Actionable insight:** Strictly free users are generating massive infrastructure costs by "
-        "utilizing the unrestricted **pro** model. Gating **pro** and routing these users to **mini** "
-        f"would unlock approximately **{_format_currency_usd(savings_disp)}** in potential savings "
-        "(actual cohort cost minus cohort-wide volume priced at observed **mini** unit cost)."
-    )
-
-    m_w, m_s = st.columns(2)
-    with m_w:
+    with k_w:
         st.metric(
             "Wasted “pro” cost (cohort)",
             _format_currency_usd(wasted_disp),
             help="Subset of cohort cost attributed to `model == pro`.",
         )
-    with m_s:
+    with k_s:
         st.metric(
             "Projected savings (all requests @ mini unit cost)",
             _format_currency_usd(savings_disp),
