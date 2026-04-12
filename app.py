@@ -329,14 +329,17 @@ if page == "Overview":
         (100.0 * research_first_users / total_users) if total_users else 0.0
     )
     _rev_spend = _monthly_revenue_and_spend_table(df_hourly, df_users_unique, df_costs)
+    _spend_from_costs_only = _monthly_infra_model_spend_usd(df_costs)
+    if not _spend_from_costs_only.empty and _spend_from_costs_only["total_usd"].notna().any():
+        mean_monthly_infra_usd = float(_spend_from_costs_only["total_usd"].mean())
+    else:
+        mean_monthly_infra_usd = None
     if not _rev_spend.empty:
-        mean_monthly_infra_usd = float(_rev_spend["spend_usd"].mean())
         _rs_from_nov = _rev_spend[_rev_spend["month"] >= REVENUE_MEAN_SINCE_UTC]
         mean_monthly_revenue_usd = (
             float(_rs_from_nov["revenue_usd"].mean()) if not _rs_from_nov.empty else None
         )
     else:
-        mean_monthly_infra_usd = None
         mean_monthly_revenue_usd = None
 
     m_users, m_rev, m_infra = st.columns(3)
@@ -380,8 +383,9 @@ if page == "Overview":
                 "Mean monthly infrastructure spend (USD)",
                 f"${mean_monthly_infra_usd:,.0f}",
                 help=(
-                    "Average calendar-month totals from `infrastructure_costs.csv`: sum of all hourly "
-                    "infrastructure and model columns (UTC month start)."
+                    "Mean of monthly spend **only for months that appear in `infrastructure_costs.csv`** "
+                    "(same totals as the Spend bars for those months). The chart can include extra months "
+                    "with $0 spend where usage/users exist but there is no cost row—those are excluded here."
                 ),
             )
         else:
