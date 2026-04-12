@@ -315,63 +315,35 @@ if page == "Overview: Research User Profile":
 
     st.markdown("---")
 
-    # Row 1: Monetization donut + usage by type (horizontal bar)
-    r1a, r1b = st.columns(2)
-    with r1a:
-        st.markdown("### Monetization (cohort)")
-        n_free = max(0, n_users_joined - n_monetized) if n_users_joined else 0
-        if n_users_joined == 0:
-            st.info("No cohort users matched in users.csv for this chart.")
-        else:
-            fig_donut = go.Figure(
-                data=[
-                    go.Pie(
-                        labels=["Monetized", "Fully free"],
-                        values=[n_monetized, n_free],
-                        hole=0.55,
-                        marker=dict(colors=["#0ea5e9", "#cbd5e1"]),
-                        textinfo="label+percent",
-                        hovertemplate="%{label}<br>%{value:,} users<br>%{percent}<extra></extra>",
-                    )
-                ]
+    # Row 1: Usage by type (horizontal bar) — full width
+    st.markdown("### Query is still the Backbone for Research Users")
+    st.caption("Total request volume in hourly_usage for this cohort, by request type.")
+    if h_cohort.empty or "request_type" not in h_cohort.columns:
+        st.info("No hourly usage for cohort users.")
+    else:
+        vol = (
+            h_cohort.groupby("request_type", observed=True)["request_count"]
+            .sum()
+            .sort_values(ascending=True)
+        )
+        fig_bar = go.Figure(
+            go.Bar(
+                x=vol.values,
+                y=vol.index.astype(str),
+                orientation="h",
+                marker=dict(color="#6366f1"),
+                hovertemplate="%{y}<br>%{x:,.0f} requests<extra></extra>",
             )
-            fig_donut.update_layout(
-                showlegend=True,
-                height=400,
-                margin=dict(t=24, b=24, l=24, r=24),
-                paper_bgcolor="rgba(0,0,0,0)",
-            )
-            st.plotly_chart(fig_donut, use_container_width=True)
-
-    with r1b:
-        st.markdown("### Query is still the Backbone for Research Users")
-        st.caption("Total request volume in hourly_usage for this cohort, by request type.")
-        if h_cohort.empty or "request_type" not in h_cohort.columns:
-            st.info("No hourly usage for cohort users.")
-        else:
-            vol = (
-                h_cohort.groupby("request_type", observed=True)["request_count"]
-                .sum()
-                .sort_values(ascending=True)
-            )
-            fig_bar = go.Figure(
-                go.Bar(
-                    x=vol.values,
-                    y=vol.index.astype(str),
-                    orientation="h",
-                    marker=dict(color="#6366f1"),
-                    hovertemplate="%{y}<br>%{x:,.0f} requests<extra></extra>",
-                )
-            )
-            fig_bar.update_layout(
-                xaxis_title="Total requests (sum of request_count)",
-                yaxis_title="",
-                height=400,
-                margin=dict(t=24, b=48, l=120, r=24),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
+        )
+        fig_bar.update_layout(
+            xaxis_title="Total requests (sum of request_count)",
+            yaxis_title="",
+            height=400,
+            margin=dict(t=24, b=48, l=120, r=24),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
 
     # Row 2: 7-day MA traffic + cumulative signups
     r2a, r2b = st.columns(2)
@@ -528,6 +500,46 @@ elif page == "Product Analysis":
             _format_compact_amount(total_api_cost),
             help="Sum of `request_cost` across all rows in research_requests (this extract).",
         )
+
+    _cohort_set_prod = set(
+        int(x) for x in _research_cohort_user_ids(df_research).tolist()
+    )
+    _uc_prod = df_users_unique[df_users_unique["user_id"].isin(_cohort_set_prod)].copy()
+    _n_users_prod = len(_uc_prod)
+    _n_mon_prod = 0
+    if _n_users_prod and {"plan", "has_paygo"}.issubset(_uc_prod.columns):
+        _n_mon_prod = int(
+            _uc_prod.apply(lambda r: _user_monetized_row(r["plan"], r["has_paygo"]), axis=1).sum()
+        )
+    _n_free_prod = max(0, _n_users_prod - _n_mon_prod) if _n_users_prod else 0
+
+    st.markdown("### Monetization (Research API cohort)")
+    st.caption(
+        "Users who appear in research_requests, matched to users.csv: **Monetized** (non-researcher plan or PayGo) "
+        "vs **Fully free**."
+    )
+    if _n_users_prod == 0:
+        st.info("No cohort users matched in users.csv for this chart.")
+    else:
+        fig_donut = go.Figure(
+            data=[
+                go.Pie(
+                    labels=["Monetized", "Fully free"],
+                    values=[_n_mon_prod, _n_free_prod],
+                    hole=0.55,
+                    marker=dict(colors=["#0ea5e9", "#cbd5e1"]),
+                    textinfo="label+percent",
+                    hovertemplate="%{label}<br>%{value:,} users<br>%{percent}<extra></extra>",
+                )
+            ]
+        )
+        fig_donut.update_layout(
+            showlegend=True,
+            height=400,
+            margin=dict(t=24, b=24, l=24, r=24),
+            paper_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(fig_donut, use_container_width=True)
 
     _pareto_pct = _research_pareto_pct_curve(df_research)
     st.markdown("### Research requests vs users (Pareto)")
