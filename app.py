@@ -186,122 +186,6 @@ def _count_post_launch_first_research_users(users_unique: pd.DataFrame, hourly: 
     return int((rt == "research").sum())
 
 
-def _monthly_infra_model_spend_usd(costs: pd.DataFrame) -> pd.DataFrame:
-    """Calendar-month totals: sum of all non-`hour` USD columns in infrastructure_costs."""
-    if costs.empty or "hour" not in costs.columns:
-        return pd.DataFrame(columns=["month", "total_usd"])
-    d = costs.dropna(subset=["hour"]).copy()
-    value_cols = [c for c in d.columns if c != "hour"]
-    if not value_cols:
-        return pd.DataFrame(columns=["month", "total_usd"])
-    d["total_usd"] = d[value_cols].fillna(0).sum(axis=1)
-    out = (
-        d.groupby(pd.Grouper(key="hour", freq="MS"), as_index=False)["total_usd"]
-        .sum()
-        .sort_values("hour")
-        .rename(columns={"hour": "month"})
-    )
-    return out
-
-
-PAYGO_USD_PER_CREDIT = 0.008
-# Fixed monthly subscription by plan (USD). Enterprise is custom — not priced here (treated as 0).
-SUBSCRIPTION_PLAN_USD_MONTH: dict[str, float] = {
-    "project": 30.0,
-    "bootstrap": 100.0,
-    "startup": 220.0,
-    "growth": 500.0,
-}
-REVENUE_MEAN_SINCE_UTC = pd.Timestamp("2025-11-01", tz="UTC")
-
-
-def _subscription_monthly_charge_usd(plan_norm: str) -> float:
-    return SUBSCRIPTION_PLAN_USD_MONTH.get(plan_norm, 0.0)
-
-
-def _utc_month_starts_inclusive_range(
-    hourly: pd.DataFrame, users_unique: pd.DataFrame, costs: pd.DataFrame
-) -> pd.DatetimeIndex:
-    bounds: list[pd.Timestamp] = []
-    if "hour" in hourly.columns:
-        s = pd.to_datetime(hourly["hour"], utc=True, errors="coerce").dropna()
-        if not s.empty:
-            bounds.extend([s.min(), s.max()])
-    if "hour" in costs.columns:
-        s = pd.to_datetime(costs["hour"], utc=True, errors="coerce").dropna()
-        if not s.empty:
-            bounds.extend([s.min(), s.max()])
-    if "created_at" in users_unique.columns:
-        s = pd.to_datetime(users_unique["created_at"], utc=True, errors="coerce").dropna()
-        if not s.empty:
-            bounds.extend([s.min(), s.max()])
-    if not bounds:
-        return pd.DatetimeIndex([], tz="UTC")
-    lo = min(bounds).tz_convert("UTC").replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    hi = max(bounds).tz_convert("UTC").replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    return pd.date_range(lo, hi, freq="MS", inclusive="both", tz="UTC")
-
-
-def _monthly_paygo_revenue_usd(hourly: pd.DataFrame) -> pd.DataFrame:
-    if hourly.empty or "hour" not in hourly.columns or "paygo_credits_used" not in hourly.columns:
-        return pd.DataFrame(columns=["month", "paygo_revenue_usd"])
-    d = hourly.dropna(subset=["hour"]).copy()
-    d["paygo_credits_used"] = pd.to_numeric(d["paygo_credits_used"], errors="coerce").fillna(0.0)
-    g = d.groupby(pd.Grouper(key="hour", freq="MS"), as_index=False)["paygo_credits_used"].sum()
-    g = g.rename(columns={"hour": "month"})
-    g["paygo_revenue_usd"] = g["paygo_credits_used"] * PAYGO_USD_PER_CREDIT
-    return g[["month", "paygo_revenue_usd"]]
-
-
-def _monthly_subscription_revenue_usd(
-    users_unique: pd.DataFrame, month_starts: pd.DatetimeIndex
-) -> pd.DataFrame:
-    if (
-        users_unique.empty
-        or "created_at" not in users_unique.columns
-        or "plan" not in users_unique.columns
-        or len(month_starts) == 0
-    ):
-        return pd.DataFrame(columns=["month", "subscription_revenue_usd"])
-    uu = users_unique.dropna(subset=["user_id", "created_at"]).copy()
-    uu["created_at"] = pd.to_datetime(uu["created_at"], utc=True, errors="coerce")
-    uu = uu.dropna(subset=["created_at"])
-    uu["plan_norm"] = uu["plan"].fillna("").astype(str).str.lower().str.strip()
-    rows: list[dict] = []
-    for ms in month_starts:
-        nxt = ms + pd.DateOffset(months=1)
-        elig = uu[uu["created_at"] < nxt]
-        sub = float(elig["plan_norm"].map(_subscription_monthly_charge_usd).sum())
-        rows.append({"month": ms, "subscription_revenue_usd": sub})
-    return pd.DataFrame(rows)
-
-
-def _monthly_revenue_and_spend_table(
-    hourly: pd.DataFrame, users_unique: pd.DataFrame, costs: pd.DataFrame
-) -> pd.DataFrame:
-    months = _utc_month_starts_inclusive_range(hourly, users_unique, costs)
-    if len(months) == 0:
-        return pd.DataFrame(
-            columns=[
-                "month",
-                "paygo_revenue_usd",
-                "subscription_revenue_usd",
-                "revenue_usd",
-                "spend_usd",
-            ]
-        )
-    base = pd.DataFrame({"month": months})
-    pay = _monthly_paygo_revenue_usd(hourly)
-    sub = _monthly_subscription_revenue_usd(users_unique, months)
-    sp = _monthly_infra_model_spend_usd(costs).rename(columns={"total_usd": "spend_usd"})
-    out = base.merge(pay, on="month", how="left").merge(sub, on="month", how="left").merge(sp, on="month", how="left")
-    out["paygo_revenue_usd"] = out["paygo_revenue_usd"].fillna(0.0)
-    out["subscription_revenue_usd"] = out["subscription_revenue_usd"].fillna(0.0)
-    out["spend_usd"] = out["spend_usd"].fillna(0.0)
-    out["revenue_usd"] = out["paygo_revenue_usd"] + out["subscription_revenue_usd"]
-    return out
-
-
 # -----------------------------------------------------------------------------
 # Overview — Executive Summary
 # -----------------------------------------------------------------------------
@@ -328,72 +212,17 @@ if page == "Overview":
     pct_research_first = (
         (100.0 * research_first_users / total_users) if total_users else 0.0
     )
-    _rev_spend = _monthly_revenue_and_spend_table(df_hourly, df_users_unique, df_costs)
-    _spend_from_costs_only = _monthly_infra_model_spend_usd(df_costs)
-    if not _spend_from_costs_only.empty and _spend_from_costs_only["total_usd"].notna().any():
-        mean_monthly_infra_usd = float(_spend_from_costs_only["total_usd"].mean())
-    else:
-        mean_monthly_infra_usd = None
-    if not _rev_spend.empty:
-        _rs_from_nov = _rev_spend[_rev_spend["month"] >= REVENUE_MEAN_SINCE_UTC]
-        mean_monthly_revenue_usd = (
-            float(_rs_from_nov["revenue_usd"].mean()) if not _rs_from_nov.empty else None
-        )
-    else:
-        mean_monthly_revenue_usd = None
-
-    m_users, m_rev, m_infra = st.columns(3)
-    with m_users:
-        st.metric(
-            "Total Users",
-            f"{total_users:,}",
-            delta=f"+{pct_research_first:.2f}%",
-            delta_color="normal",
-            help=(
-                f"Users signed up after {RESEARCH_API_LAUNCH_UTC.day}/{RESEARCH_API_LAUNCH_UTC.month}/"
-                f"{RESEARCH_API_LAUNCH_UTC.year} (Research API launched) who used Research as their "
-                "first request in hourly usage (UTC)."
-            ),
-        )
-    with m_rev:
-        if mean_monthly_revenue_usd is not None:
-            st.metric(
-                "Mean monthly revenue (from Nov 2025, USD)",
-                f"${mean_monthly_revenue_usd:,.0f}",
-                help=(
-                    "Average monthly **modeled** revenue for months from **Nov 2025** onward: "
-                    f"PayGo (`paygo_credits_used` × ${PAYGO_USD_PER_CREDIT}/credit) plus fixed plan fees "
-                    f"(Project ${SUBSCRIPTION_PLAN_USD_MONTH['project']:.0f}, Bootstrap "
-                    f"${SUBSCRIPTION_PLAN_USD_MONTH['bootstrap']:.0f}, Startup "
-                    f"${SUBSCRIPTION_PLAN_USD_MONTH['startup']:.0f}, Growth "
-                    f"${SUBSCRIPTION_PLAN_USD_MONTH['growth']:.0f}/mo; Enterprise/custom not priced). "
-                    "Subscription uses each user’s current **plan** from the users extract applied to every "
-                    "month after signup (no plan history)."
-                ),
-            )
-        else:
-            st.metric(
-                "Mean monthly revenue (from Nov 2025, USD)",
-                "—",
-                help="Could not compute monthly revenue (missing data).",
-            )
-    with m_infra:
-        if mean_monthly_infra_usd is not None:
-            st.metric(
-                "Mean monthly infrastructure spend (USD)",
-                f"${mean_monthly_infra_usd:,.0f}",
-                help=(
-                    "Mean of monthly spend **only for months that appear in `infrastructure_costs.csv`** "
-                    "(same totals as the Spend bars for those months). The chart can include extra months "
-                    "with $0 spend where usage/users exist but there is no cost row—those are excluded here."
-                ),
-            )
-        else:
-            st.metric(
-                "Mean monthly infrastructure spend (USD)",
-                "—",
-                help="No usable monthly totals from `infrastructure_costs.csv`.",
-            )
+    st.metric(
+        "Total Users",
+        f"{total_users:,}",
+        delta=f"+{pct_research_first:.2f}%",
+        delta_color="normal",
+        help=(
+            f"Users signed up after {RESEARCH_API_LAUNCH_UTC.day}/{RESEARCH_API_LAUNCH_UTC.month}/"
+            f"{RESEARCH_API_LAUNCH_UTC.year} (Research API launched) who used Research as their "
+            "first request in hourly usage (UTC)."
+        ),
+    )
 
     free_pct_users = (100.0 * free_users_count / total_users) if total_users else 0.0
 
@@ -566,50 +395,6 @@ if page == "Overview":
                 st.caption(
                     "Series starts on the **first day with traffic**; the level includes users who signed up **before** that day."
                 )
-
-    _rev_spend_chart = _rev_spend[_rev_spend["month"] >= REVENUE_MEAN_SINCE_UTC].copy()
-    if not _rev_spend_chart.empty:
-        st.markdown("### Monthly revenue vs platform spend (USD, from Nov 2025)")
-        fig_rs = go.Figure(
-            data=[
-                go.Bar(
-                    name="Revenue",
-                    x=_rev_spend_chart["month"],
-                    y=_rev_spend_chart["revenue_usd"],
-                    marker_color="#059669",
-                    hovertemplate="Revenue: $%{y:,.0f}<extra></extra>",
-                ),
-                go.Bar(
-                    name="Spend",
-                    x=_rev_spend_chart["month"],
-                    y=_rev_spend_chart["spend_usd"],
-                    marker_color="#6366f1",
-                    hovertemplate="Spend: $%{y:,.0f}<extra></extra>",
-                ),
-            ]
-        )
-        fig_rs.update_layout(
-            barmode="group",
-            bargap=0.2,
-            bargroupgap=0.1,
-            height=400,
-            margin=dict(t=24, b=48, l=56, r=24),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            xaxis_title="Month (UTC)",
-            yaxis_title="USD",
-        )
-        fig_rs.update_yaxes(tickformat=",.0f")
-        fig_rs.update_xaxes(tickformat="%b %Y")
-        st.plotly_chart(fig_rs, use_container_width=True)
-        st.caption(
-            "Months shown are **Nov 2025 onward** (UTC). Revenue = PayGo (`paygo_credits_used` × $0.008/credit) plus "
-            "fixed monthly plan fees for every user who had signed up before that month (Project $30, Bootstrap $100, "
-            "Startup $220, Growth $500; researcher/freemium $0; Enterprise/custom not priced). Each row uses the user’s "
-            "**current** plan from the extract for all months (no historical plan changes). Spend = hourly infra + "
-            "model cost columns summed by month."
-        )
 
 # -----------------------------------------------------------------------------
 # Product Analysis
