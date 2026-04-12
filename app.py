@@ -261,12 +261,6 @@ if page == "Overview: Research User Profile":
     cohort_set = set(int(x) for x in cohort_ids.tolist())
     n_cohort = int(len(cohort_ids))
 
-    st.info(
-        f"**Methodological Note:** This dashboard analyzes a specific cohort of **{n_cohort:,}** users who "
-        "interacted with the Research API. It is designed to profile our **Research Users** rather than the "
-        "entire Tavily platform."
-    )
-
     # --- KPIs ---
     # 1) Cohort size (above as n_cohort)
     # 2) Research-led acquisition: first chronological hourly row is research
@@ -415,6 +409,11 @@ elif page == "Product Analysis":
         )
     else:
         n_research_users_rq = 0
+    st.info(
+        f"**About this page:** Everything below is scoped to **{n_research_users_rq:,}** distinct users who appear "
+        "in **research_requests** in this sample. The goal is to understand **Research API** adoption, mix, and "
+        "economics for that group—not to represent all Tavily traffic or accounts."
+    )
     n_research_first, n_joined_after_research = _research_first_after_launch_metrics(
         df_users_unique, df_hourly, df_research
     )
