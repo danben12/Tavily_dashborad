@@ -263,9 +263,10 @@ if page == "Product Analysis":
     else:
         n_research_users_rq = 0
     st.info(
-        f"**About this page:** Everything below is scoped to **{n_research_users_rq:,}** distinct users who appear "
-        "in **research_requests** in this sample. The goal is to understand **Research API** adoption, mix, and "
-        "economics for that group—not to represent all Tavily traffic or accounts."
+        "**Methodological Note:** This dashboard presents a Cohort Analysis of the 16,333 users who interacted "
+        "with the Research API. The data—including traffic volumes in other products—reflects the profile and "
+        "behavior of **Research Users** specifically, and does not represent a macro-view of the entire Tavily "
+        "platform."
     )
     n_research_first, n_joined_after_research = _research_first_after_launch_metrics(
         df_users_unique, df_hourly, df_research
