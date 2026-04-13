@@ -310,7 +310,14 @@ def render_product_analysis_and_cost(
                     margin=dict(t=60, b=40, l=30, r=30),
                 )
                 fig_latency.update_traces(
-                    hovertemplate="Model: %{x}<br>Response Time: %{y:.2f} sec<extra></extra>"
+                    hovertemplate=(
+                        "Model: %{x}<br>"
+                        "Q1: %{q1:.2f} sec<br>"
+                        "Median: %{median:.2f} sec<br>"
+                        "Q3: %{q3:.2f} sec<br>"
+                        "Min: %{lowerfence:.2f} sec<br>"
+                        "Max: %{upperfence:.2f} sec<extra></extra>"
+                    )
                 )
                 st.plotly_chart(fig_latency, use_container_width=True)
 
@@ -373,14 +380,10 @@ def render_product_analysis_and_cost(
         line=dict(color="#FF7F0E", width=2, dash="dot"),
         fill=None,
     )
-    fig_pareto.update_traces(
-        selector=dict(name="cum_requests_pct"),
-        hovertemplate="Users: %{x:.2f}%<br>Requests: %{y:.2f}%<extra></extra>",
-    )
-    fig_pareto.update_traces(
-        selector=dict(name="Linear baseline"),
-        hovertemplate="Users: %{x:.2f}%<br>Linear: %{y:.2f}%<extra></extra>",
-    )
+    if len(fig_pareto.data) >= 1:
+        fig_pareto.data[0].hovertemplate = "Users: %{x:.2f}%<br>Requests: %{y:.2f}%<extra></extra>"
+    if len(fig_pareto.data) >= 2:
+        fig_pareto.data[1].hovertemplate = "Users: %{x:.2f}%<br>Linear: %{y:.2f}%<extra></extra>"
     fig_pareto.update_layout(
         template="simple_white",
         title_font=dict(size=20),
