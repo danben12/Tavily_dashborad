@@ -240,6 +240,47 @@ def _is_cancelled_status(series: pd.Series) -> pd.Series:
     return normalized.str.contains("cancel", na=False)
 
 
+def _prepare_q3_top_metrics(research_requests: pd.DataFrame) -> tuple[float, float] | None:
+    rr = _lowercase_columns(research_requests)
+    required_cols = {
+        "status",
+        "stream",
+        "client_source",
+        "response_time_seconds",
+        "credits_used",
+        "request_cost",
+    }
+    if not required_cols.issubset(rr.columns):
+        return None
+
+    rr = rr.copy()
+    rr["response_time_seconds"] = pd.to_numeric(rr["response_time_seconds"], errors="coerce")
+    rr["credits_used"] = pd.to_numeric(rr["credits_used"], errors="coerce")
+    rr["request_cost"] = pd.to_numeric(rr["request_cost"], errors="coerce")
+    rr["is_cancelled"] = _is_cancelled_status(rr["status"])
+
+    human_ui = rr[
+        _is_true_stream(rr["stream"])
+        & (~rr["client_source"].astype(str).str.strip().str.lower().eq("mcp"))
+    ].copy()
+    human_ui = human_ui.dropna(subset=["response_time_seconds"])
+    human_ui["duration_group"] = human_ui["response_time_seconds"].apply(
+        lambda x: "< 90 seconds" if x < 90 else ">= 90 seconds"
+    )
+
+    cancel_rate_gt90 = human_ui.loc[
+        human_ui["duration_group"] == ">= 90 seconds", "is_cancelled"
+    ].mean()
+    if pd.isna(cancel_rate_gt90):
+        cancel_rate_gt90 = 0.0
+
+    unbilled_cancelled_cost = rr.loc[
+        rr["is_cancelled"] & (rr["credits_used"].fillna(0).eq(0)),
+        "request_cost",
+    ].sum()
+    return float(cancel_rate_gt90), float(unbilled_cancelled_cost)
+
+
 def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
     rr = _lowercase_columns(research_requests)
     required_cols = {
@@ -272,23 +313,6 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
     human_ui["duration_group"] = human_ui["response_time_seconds"].apply(
         lambda x: "< 90 seconds" if x < 90 else ">= 90 seconds"
     )
-
-    cancel_rate_gt90 = human_ui.loc[
-        human_ui["duration_group"] == ">= 90 seconds", "is_cancelled"
-    ].mean()
-    if pd.isna(cancel_rate_gt90):
-        cancel_rate_gt90 = 0.0
-
-    unbilled_cancelled_cost = rr.loc[
-        rr["is_cancelled"] & (rr["credits_used"].fillna(0).eq(0)),
-        "request_cost",
-    ].sum()
-
-    k1, k2 = st.columns(2)
-    with k1:
-        st.metric("Cancel Rate (>90s)", f"{100.0 * float(cancel_rate_gt90):.2f}%")
-    with k2:
-        st.metric("Unbilled Cancelled Cost", f"${float(unbilled_cancelled_cost):,.2f}")
 
     wait_effect = (
         human_ui.groupby("duration_group", as_index=False)["is_cancelled"]
@@ -425,6 +449,7 @@ def render_product_analysis_and_cost(
         st.error("Missing required columns for economics analysis.")
         return
     q2_metrics, user_dist, request_cost_dist, cost_by_model_user = q2_data
+    q3_top_metrics = _prepare_q3_top_metrics(research_requests)
 
     m1, m2, m3 = st.columns(3)
     with m1:
@@ -442,6 +467,12 @@ def render_product_analysis_and_cost(
         st.metric("Total Pro Cost from Free Users", f"${q2_metrics['total_pro_cost_free']:,.2f}")
     with m3:
         st.metric("Potential Savings", f"${q2_metrics['potential_savings']:,.2f}")
+    if q3_top_metrics is not None:
+        q3_m1, q3_m2 = st.columns(2)
+        with q3_m1:
+            st.metric("Cancel Rate (>90s)", f"{100.0 * q3_top_metrics[0]:.2f}%")
+        with q3_m2:
+            st.metric("Unbilled Cancelled Cost", f"${q3_top_metrics[1]:,.2f}")
 
     col1, col2 = st.columns(2)
 
