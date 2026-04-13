@@ -246,6 +246,15 @@ def _segment_client_source(series: pd.Series) -> pd.Series:
     return source_norm.map(lambda s: "bot" if s in BOT_CLIENT_SOURCES else "human")
 
 
+def _format_compact_cost(value: float) -> str:
+    abs_value = abs(value)
+    if abs_value >= 1_000_000:
+        return f"${value / 1_000_000:.1f}M"
+    if abs_value >= 1_000:
+        return f"${value / 1_000:.1f}K"
+    return f"${value:.1f}"
+
+
 def _prepare_q3_top_metrics(research_requests: pd.DataFrame) -> tuple[float, float] | None:
     rr = _lowercase_columns(research_requests)
     required_cols = {
@@ -456,8 +465,14 @@ def render_product_analysis_and_cost(
         return
     q2_metrics, user_dist, request_cost_dist, cost_by_model_user = q2_data
     q3_top_metrics = _prepare_q3_top_metrics(research_requests)
+    rr_cost = _lowercase_columns(research_requests)
+    total_request_cost = 0.0
+    if "request_cost" in rr_cost.columns:
+        total_request_cost = float(
+            pd.to_numeric(rr_cost["request_cost"], errors="coerce").fillna(0).sum()
+        )
 
-    m1, m2, m3 = st.columns(3)
+    m1, m2, m3, m4 = st.columns(4)
     with m1:
         st.metric(
             "Research API Acquisition (New Users)",
@@ -473,6 +488,8 @@ def render_product_analysis_and_cost(
         st.metric("Total Pro Cost from Free Users", f"${q2_metrics['total_pro_cost_free']:,.2f}")
     with m3:
         st.metric("Potential Savings", f"${q2_metrics['potential_savings']:,.2f}")
+    with m4:
+        st.metric("Total Request Cost", _format_compact_cost(total_request_cost))
     if q3_top_metrics is not None:
         q3_m1, q3_m2 = st.columns(2)
         with q3_m1:
