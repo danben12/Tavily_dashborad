@@ -87,9 +87,9 @@ def _build_events(hourly_usage: pd.DataFrame, research_requests: pd.DataFrame) -
     return events.sort_values(["user_id", "event_ts", "source"]).reset_index(drop=True)
 
 
-def _retention_by_cohort(events: pd.DataFrame) -> pd.DataFrame:
+def _retention_by_segment(events: pd.DataFrame) -> pd.DataFrame:
     if events.empty:
-        return pd.DataFrame(columns=["cohort", "retention_rate"])
+        return pd.DataFrame(columns=["segment", "retention_rate"])
 
     first_actions = (
         events.groupby("user_id", as_index=False)
@@ -107,12 +107,12 @@ def _retention_by_cohort(events: pd.DataFrame) -> pd.DataFrame:
         user_lifecycle["last_event_ts"]
         >= user_lifecycle["first_event_ts"] + pd.Timedelta(days=30)
     )
-    user_lifecycle["cohort"] = user_lifecycle["first_source"].map(
+    user_lifecycle["segment"] = user_lifecycle["first_source"].map(
         {"query": "First Action = Query", "research": "First Action = Research"}
     )
 
     out = (
-        user_lifecycle.groupby("cohort", as_index=False)["retained_30d"]
+        user_lifecycle.groupby("segment", as_index=False)["retained_30d"]
         .mean()
         .rename(columns={"retained_30d": "retention_rate"})
     )
@@ -192,30 +192,43 @@ def render_product_analysis_and_cost(
     st.metric(
         "Research API Acquisition (New Users)",
         f"{acquisition_pct:.1f}%",
-        delta=f"-{churn_pct:.1f}% churn (Research-first cohort)",
+        delta=f"-{churn_pct:.1f}% churn (Research-first users)",
         delta_color="inverse",
+        help=(
+            "Acquisition = % of users created after Research API launch whose very first activity "
+            "across hourly_usage + research_requests is in research_requests. "
+            "Churn = 100% - retention, where retention means any activity at least 30 days after "
+            "a user's first valid activity."
+        ),
     )
 
     col1, col2 = st.columns(2)
 
     with col1:
-        retention_df = _retention_by_cohort(events)
+        st.caption(
+            "Calculation: users are split by first-ever action (Query vs Research), then "
+            "retention = share with any activity 30+ days after first activity."
+        )
+        retention_df = _retention_by_segment(events)
         if retention_df.empty:
-            st.warning("Not enough data to calculate retention cohorts.")
+            st.warning("Not enough data to calculate retention by first action.")
         else:
             retention_df["retention_rate"] = retention_df["retention_rate"] * 100.0
             fig_retention = px.bar(
                 retention_df,
-                x="cohort",
+                x="segment",
                 y="retention_rate",
-                title="Retention Rate by First Action Cohort",
-                labels={"cohort": "Cohort", "retention_rate": "Retention Rate (%)"},
+                title="Retention Rate by First Action",
+                labels={"segment": "First Action", "retention_rate": "Retention Rate (%)"},
                 text=retention_df["retention_rate"].map(lambda x: f"{x:.1f}%"),
             )
             fig_retention.update_layout(template="simple_white")
             st.plotly_chart(fig_retention, use_container_width=True)
 
     with col2:
+        st.caption(
+            "Calculation: average `response_time_seconds` grouped by `model` for mini and pro only."
+        )
         rr = _lowercase_columns(research_requests)
         if not {"model", "response_time_seconds"}.issubset(rr.columns):
             st.warning("Missing `model` or `response_time_seconds` in research data.")
@@ -250,6 +263,10 @@ def render_product_analysis_and_cost(
                 st.plotly_chart(fig_latency, use_container_width=True)
 
     # Pareto: concentration of research traffic.
+    st.caption(
+        "Calculation: count research requests per user, sort descending, then plot cumulative % users "
+        "vs cumulative % total requests. Dashed lines mark 5% users and their request share."
+    )
     rr = _lowercase_columns(research_requests)
     if "user_id" not in rr.columns:
         st.warning("Missing `user_id` in research requests for Pareto chart.")
