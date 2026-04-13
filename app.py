@@ -433,7 +433,7 @@ def render_product_analysis_and_cost(
             request_cost_dist,
             x="model",
             y="request_cost",
-            title="<b>Average Cost per Request by Model</b>",
+            title="<b>Request Cost Distribution by Model</b>",
             labels={"model": "Model", "request_cost": "Average Request Cost ($)"},
             color="model",
             color_discrete_map=MODEL_COLORS_UPPER,
