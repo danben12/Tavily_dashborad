@@ -7,8 +7,9 @@ import streamlit as st
 
 @st.cache_data
 def load_datasets_from_zip() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Load all required datasets from data.zip in the app directory."""
+    """Load all required datasets, preferring data.zip."""
     app_dir = Path(__file__).resolve().parent
+    parent_dir = app_dir.parent
     zip_path = app_dir / "data.zip"
     required_files = (
         "hourly_usage.csv",
@@ -17,20 +18,29 @@ def load_datasets_from_zip() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, 
         "users.csv",
     )
 
-    if not zip_path.is_file():
-        raise FileNotFoundError(f"Could not find data archive at '{zip_path}'.")
-
     loaded_frames: dict[str, pd.DataFrame] = {}
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        members = set(zf.namelist())
-        missing = [name for name in required_files if name not in members]
-        if missing:
-            raise FileNotFoundError(
-                f"Missing required files in data.zip: {', '.join(missing)}"
-            )
+
+    if zip_path.is_file():
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                members = set(zf.namelist())
+                missing = [name for name in required_files if name not in members]
+                if not missing:
+                    for name in required_files:
+                        with zf.open(name) as dataset_file:
+                            loaded_frames[name] = pd.read_csv(dataset_file)
+        except zipfile.BadZipFile:
+            loaded_frames = {}
+
+    if not loaded_frames:
         for name in required_files:
-            with zf.open(name) as dataset_file:
-                loaded_frames[name] = pd.read_csv(dataset_file)
+            candidate_paths = (app_dir / name, parent_dir / name)
+            csv_path = next((path for path in candidate_paths if path.is_file()), None)
+            if csv_path is None:
+                raise FileNotFoundError(
+                    f"Could not load '{name}' from data.zip or CSV fallbacks."
+                )
+            loaded_frames[name] = pd.read_csv(csv_path)
 
     return (
         loaded_frames["hourly_usage.csv"],
