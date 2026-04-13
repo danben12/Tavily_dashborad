@@ -313,15 +313,25 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
         lambda x: "< 90 seconds" if x < 90 else ">= 90 seconds"
     )
 
+    wait_base = rr.dropna(subset=["response_time_seconds"]).copy()
+    wait_base["stream_group"] = _is_true_stream(wait_base["stream"]).map(
+        {True: "Streaming", False: "Non-streaming"}
+    )
+    wait_base["duration_group"] = wait_base["response_time_seconds"].apply(
+        lambda x: "< 90 seconds" if x < 90 else ">= 90 seconds"
+    )
     wait_effect = (
-        human_ui.groupby("duration_group", as_index=False)["is_cancelled"]
+        wait_base.groupby(["duration_group", "stream_group"], as_index=False)["is_cancelled"]
         .mean()
         .rename(columns={"is_cancelled": "cancel_rate"})
     )
     wait_effect["duration_group"] = pd.Categorical(
         wait_effect["duration_group"], categories=["< 90 seconds", ">= 90 seconds"], ordered=True
     )
-    wait_effect = wait_effect.sort_values("duration_group")
+    wait_effect["stream_group"] = pd.Categorical(
+        wait_effect["stream_group"], categories=["Streaming", "Non-streaming"], ordered=True
+    )
+    wait_effect = wait_effect.sort_values(["duration_group", "stream_group"])
 
     inefficiency = (
         human_ui.groupby("duration_group", as_index=False)[["llm_calls", "num_sources"]]
@@ -357,22 +367,23 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
             y="cancel_rate",
             title="<b>Cancellation Rate by Wait Time</b>",
             labels={"duration_group": "Duration Group", "cancel_rate": "Cancel Rate"},
-            color="duration_group",
-            color_discrete_sequence=["#4C78A8", "#E45756"],
+            color="stream_group",
+            barmode="group",
+            color_discrete_map={"Streaming": "#4C78A8", "Non-streaming": "#E45756"},
             text=wait_effect["cancel_rate"].map(lambda v: f"{100.0 * v:.2f}%"),
         )
         fig_wait.update_traces(
             textposition="outside",
             cliponaxis=False,
-            hovertemplate="Duration: %{x}<br>Cancel Rate: %{y:.2%}<extra></extra>",
+            hovertemplate="Duration: %{x}<br>%{fullData.name}: %{y:.2%}<extra></extra>",
         )
         fig_wait.update_layout(
             template="simple_white",
-            showlegend=False,
             title_font=dict(size=20),
             xaxis_title_font=dict(size=14),
             yaxis_title_font=dict(size=14),
             font=dict(size=13),
+            legend_title_text="",
         )
         fig_wait.update_yaxes(tickformat=".0%")
         st.plotly_chart(fig_wait, use_container_width=True)
