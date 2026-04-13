@@ -325,6 +325,16 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
         .mean()
         .rename(columns={"is_cancelled": "cancel_rate"})
     )
+    wait_counts = (
+        wait_base.groupby(["duration_group", "stream_group"], as_index=False)
+        .agg(
+            request_count=("is_cancelled", "size"),
+            cancelled_count=("is_cancelled", "sum"),
+        )
+    )
+    wait_effect = wait_effect.merge(
+        wait_counts, on=["duration_group", "stream_group"], how="left"
+    )
     wait_effect["duration_group"] = pd.Categorical(
         wait_effect["duration_group"], categories=["< 90 seconds", ">= 90 seconds"], ordered=True
     )
@@ -375,7 +385,14 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
         fig_wait.update_traces(
             textposition="outside",
             cliponaxis=False,
-            hovertemplate="Duration: %{x}<br>%{fullData.name}: %{y:.2%}<extra></extra>",
+            customdata=wait_effect[["request_count", "cancelled_count"]].to_numpy(),
+            hovertemplate=(
+                "Duration: %{x}<br>"
+                "%{fullData.name}<br>"
+                "Cancel Rate: %{y:.2%}<br>"
+                "Total Requests: %{customdata[0]:,.0f}<br>"
+                "Cancelled Requests: %{customdata[1]:,.0f}<extra></extra>"
+            ),
         )
         fig_wait.update_layout(
             template="simple_white",
