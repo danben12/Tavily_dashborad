@@ -849,18 +849,19 @@ def render_infrastructure_and_cost_analysis(
     with col2:
         fig_growth = make_subplots(specs=[[{"secondary_y": True}]])
         fig_growth.add_trace(
-            go.Bar(
-                x=monthly_agg["month_label"],
+            go.Scatter(
+                x=monthly_agg["month"],
                 y=monthly_agg["total_requests"],
                 name="Total Requests",
-                marker_color="#4C78A8",
+                mode="lines+markers",
+                line=dict(color="#4C78A8", width=3),
                 hovertemplate="Month: %{x}<br>Requests: %{y:,.0f}<extra></extra>",
             ),
             secondary_y=False,
         )
         fig_growth.add_trace(
             go.Scatter(
-                x=monthly_agg["month_label"],
+                x=monthly_agg["month"],
                 y=monthly_agg["infra_total_cost"],
                 name="Infrastructure Cost",
                 mode="lines+markers",
