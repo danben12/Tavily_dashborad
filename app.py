@@ -335,7 +335,7 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
     inefficiency = (
         human_ui.groupby("duration_group", as_index=False).agg(
             **{
-                "Avg LLM Calls": ("llm_calls", "mean"),
+                "Median LLM Calls": ("llm_calls", "median"),
                 "Median Sources Found": ("num_sources", "median"),
             }
         )
@@ -346,7 +346,7 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
     inefficiency = inefficiency.sort_values("duration_group")
     inefficiency_long = inefficiency.melt(
         id_vars="duration_group",
-        value_vars=["Avg LLM Calls", "Median Sources Found"],
+        value_vars=["Median LLM Calls", "Median Sources Found"],
         var_name="metric",
         value_name="value",
     )
@@ -404,7 +404,7 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
             barmode="group",
             title="<b>Technical Inefficiency by Wait Time</b>",
             labels={"duration_group": "Duration Group", "value": "Average", "metric": ""},
-            color_discrete_map={"Avg LLM Calls": "#E45756", "Median Sources Found": "#72B7B2"},
+            color_discrete_map={"Median LLM Calls": "#E45756", "Median Sources Found": "#72B7B2"},
             text=inefficiency_long["value"].map(lambda v: f"{v:.2f}"),
         )
         fig_ineff.update_traces(
