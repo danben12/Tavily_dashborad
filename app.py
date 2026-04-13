@@ -404,39 +404,6 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
         )
         st.plotly_chart(fig_ineff, use_container_width=True)
 
-    hist_q3 = human_ui.copy()
-    hist_q3["cancel_status"] = hist_q3["is_cancelled"].map(
-        {True: "Cancelled", False: "Not Cancelled"}
-    )
-    fig_wait_hist = px.histogram(
-        hist_q3,
-        x="response_time_seconds",
-        color="cancel_status",
-        nbins=30,
-        barmode="overlay",
-        histnorm="percent",
-        title="<b>Cancellation Distribution by Wait Time (Histogram)</b>",
-        labels={
-            "response_time_seconds": "Response Time (seconds)",
-            "cancel_status": "Request Status",
-            "percent": "Share of Requests (%)",
-        },
-        color_discrete_map={"Cancelled": "#E45756", "Not Cancelled": "#4C78A8"},
-    )
-    fig_wait_hist.update_traces(
-        opacity=0.6,
-        hovertemplate="Status: %{fullData.name}<br>Response Time: %{x:.2f} sec<br>Share: %{y:.2f}%<extra></extra>",
-    )
-    fig_wait_hist.update_layout(
-        template="simple_white",
-        title_font=dict(size=20),
-        xaxis_title_font=dict(size=14),
-        yaxis_title_font=dict(size=14),
-        font=dict(size=13),
-        legend_title_text="",
-    )
-    st.plotly_chart(fig_wait_hist, use_container_width=True)
-
     fig_billing = px.pie(
         billing_dist,
         names="billing_status",
