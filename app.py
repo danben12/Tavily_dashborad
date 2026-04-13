@@ -193,6 +193,8 @@ def _prepare_q2_economics(
 def render_product_analysis_and_cost(
     users: pd.DataFrame, hourly_usage: pd.DataFrame, research_requests: pd.DataFrame
 ) -> None:
+    st.title("Research API Product Analysis")
+
     lifecycle, _joined_users_count = _build_hourly_lifecycle(users, hourly_usage)
     if lifecycle.empty:
         st.error("Could not build lifecycle table from users and hourly usage.")
