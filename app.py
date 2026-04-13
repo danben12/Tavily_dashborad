@@ -935,7 +935,7 @@ def render_infrastructure_and_cost_analysis(
         heatmap_pivot,
         labels=dict(x="Hour of Day", y="Day of Week", color="Mean Infra Cost ($)"),
         title="<b>Mean Infrastructure Cost by Day of Week and Hour</b>",
-        color_continuous_scale="Blues",
+        color_continuous_scale="coolwarm",
         aspect="auto",
     )
     fig_heatmap.update_traces(
