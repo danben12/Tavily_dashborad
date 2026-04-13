@@ -183,7 +183,7 @@ def render_product_analysis_and_cost(
 
     with col2:
         st.caption(
-            "Calculation: average `response_time_seconds` grouped by `model` for mini and pro only."
+            "Calculation: use request-level `response_time_seconds` for mini and pro and show distribution with a box plot."
         )
         rr = _lowercase_columns(research_requests)
         if not {"model", "response_time_seconds"}.issubset(rr.columns):
@@ -193,27 +193,22 @@ def render_product_analysis_and_cost(
             rr["response_time_seconds"] = pd.to_numeric(
                 rr["response_time_seconds"], errors="coerce"
             )
-            model_latency = (
-                rr[rr["model"].isin(["mini", "pro"])]
-                .dropna(subset=["response_time_seconds"])
-                .groupby("model", as_index=False)["response_time_seconds"]
-                .mean()
-                .rename(columns={"response_time_seconds": "avg_response_time_seconds"})
+            latency_points = rr[rr["model"].isin(["mini", "pro"])].dropna(
+                subset=["response_time_seconds"]
             )
-            if model_latency.empty:
+            if latency_points.empty:
                 st.warning("No usable Mini/Pro response-time data found.")
             else:
-                fig_latency = px.bar(
-                    model_latency,
-                    x="avg_response_time_seconds",
-                    y="model",
-                    orientation="h",
-                    title="Average Response Time by Model (Mini vs Pro)",
+                fig_latency = px.box(
+                    latency_points,
+                    x="model",
+                    y="response_time_seconds",
+                    title="Response Time Distribution by Model (Mini vs Pro)",
                     labels={
-                        "avg_response_time_seconds": "Average Response Time (seconds)",
+                        "response_time_seconds": "Response Time (seconds)",
                         "model": "Model",
                     },
-                    text=model_latency["avg_response_time_seconds"].map(lambda x: f"{x:.2f}s"),
+                    points="outliers",
                 )
                 fig_latency.update_layout(template="simple_white")
                 st.plotly_chart(fig_latency, use_container_width=True)
