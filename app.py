@@ -9,7 +9,7 @@ from plotly.subplots import make_subplots
 
 MODEL_COLORS = {"mini": "#72B7B2", "pro": "#E45756"}
 MODEL_COLORS_UPPER = {"MINI": "#72B7B2", "PRO": "#E45756"}
-USER_COLORS = {"Free Users": "#F58518", "Paid Users": "#4C78A8"}
+USER_COLORS = {"Free Users": "#F58518", "Paying Users": "#4C78A8"}
 COOLWARM_SCALE = [
     [0.0, "#3B4CC0"],
     [0.2, "#6F92F3"],
@@ -172,10 +172,10 @@ def _prepare_q2_economics(
         users_l["has_paygo"].astype(str).str.strip().str.lower().eq("true")
     )
     users_l["plan_norm"] = users_l["plan"].astype(str).str.strip().str.lower()
-    users_l["is_paid_user"] = users_l["has_paygo_bool"] | (~users_l["plan_norm"].eq("researcher"))
+    users_l["is_paying_user"] = users_l["has_paygo_bool"] | (~users_l["plan_norm"].eq("researcher"))
     users_l = users_l.drop_duplicates(subset=["user_id"], keep="first")
-    users_l["user_type"] = users_l["is_paid_user"].map(
-        {True: "Paid Users", False: "Free Users"}
+    users_l["user_type"] = users_l["is_paying_user"].map(
+        {True: "Paying Users", False: "Free Users"}
     )
 
     rr = rr.copy()
@@ -186,13 +186,13 @@ def _prepare_q2_economics(
     rr["model"] = rr["model"].astype(str).str.strip().str.lower()
 
     merged = rr.merge(
-        users_l[["user_id", "is_paid_user", "user_type"]], on="user_id", how="left"
+        users_l[["user_id", "is_paying_user", "user_type"]], on="user_id", how="left"
     )
-    merged["is_paid_user"] = merged["is_paid_user"].fillna(False).astype(bool)
+    merged["is_paying_user"] = merged["is_paying_user"].fillna(False).astype(bool)
     merged["user_type"] = merged["user_type"].fillna("Free Users")
 
     free_pro = merged[
-        (~merged["is_paid_user"]) & (merged["model"] == "pro")
+        (~merged["is_paying_user"]) & (merged["model"] == "pro")
     ].copy()
     total_pro_cost_free = float(free_pro["request_cost"].sum())
     pro_requests_free_count = int(len(free_pro))
@@ -763,7 +763,7 @@ def render_product_analysis_and_cost(
             values="users",
             names="user_type",
             hole=0.5,
-            title="<b>User Base: Free vs. Paid</b>",
+            title="<b>User Base: Free vs. Paying</b>",
             color="user_type",
             color_discrete_map=USER_COLORS,
         )
