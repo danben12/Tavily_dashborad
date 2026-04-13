@@ -653,7 +653,7 @@ def render_product_analysis_and_cost(
                 yaxis_title_font=dict(size=14),
                 font=dict(size=13),
                 margin=dict(t=60, b=40, l=30, r=30),
-                yaxis=dict(range=[0, max(100.0, float(no_return_df["pct_single_row"].max()) * 1.15)]),
+                yaxis=dict(range=[0, 30]),
             )
             st.plotly_chart(fig_retention, use_container_width=True)
 
