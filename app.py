@@ -176,11 +176,8 @@ def _prepare_q2_economics(
         .nunique()
         .rename(columns={"user_id": "users"})
     )
-    avg_cost = (
-        rr[rr["model"].isin(["mini", "pro"])]
-        .groupby("model", as_index=False)["request_cost"]
-        .mean()
-    )
+    request_cost_dist = rr[rr["model"].isin(["mini", "pro"])][["model", "request_cost"]].copy()
+    request_cost_dist["model"] = request_cost_dist["model"].str.upper()
     cost_by_model_user = (
         merged.groupby(["model", "user_type"], as_index=False)["request_cost"].sum()
     )
@@ -190,7 +187,7 @@ def _prepare_q2_economics(
         "total_pro_cost_free": total_pro_cost_free,
         "potential_savings": potential_savings,
     }
-    return metrics, user_dist, avg_cost, cost_by_model_user
+    return metrics, user_dist, request_cost_dist, cost_by_model_user
 
 
 def render_product_analysis_and_cost(
@@ -218,7 +215,7 @@ def render_product_analysis_and_cost(
     if q2_data is None:
         st.error("Missing required columns for economics analysis.")
         return
-    q2_metrics, user_dist, avg_cost, cost_by_model_user = q2_data
+    q2_metrics, user_dist, request_cost_dist, cost_by_model_user = q2_data
 
     m1, m2, m3 = st.columns(3)
     with m1:
@@ -399,17 +396,16 @@ def render_product_analysis_and_cost(
         st.plotly_chart(fig_user_dist, use_container_width=True)
 
     with col4:
-        fig_avg_cost = px.bar(
-            avg_cost,
+        fig_avg_cost = px.box(
+            request_cost_dist,
             x="model",
             y="request_cost",
             title="<b>Average Cost per Request by Model</b>",
             labels={"model": "Model", "request_cost": "Average Request Cost ($)"},
             color="model",
-            color_discrete_map={"mini": "#72B7B2", "pro": "#E45756"},
-            text=avg_cost["request_cost"].map(lambda x: f"${x:,.2f}"),
+            color_discrete_map={"MINI": "#72B7B2", "PRO": "#E45756"},
+            points=False,
         )
-        fig_avg_cost.update_traces(textposition="outside", cliponaxis=False)
         fig_avg_cost.update_layout(
             template="simple_white",
             showlegend=False,
