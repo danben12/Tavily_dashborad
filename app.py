@@ -6,6 +6,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
+MODEL_COLORS = {"mini": "#72B7B2", "pro": "#E45756"}
+MODEL_COLORS_UPPER = {"MINI": "#72B7B2", "PRO": "#E45756"}
+USER_COLORS = {"Free Users": "#F58518", "Paid Users": "#4C78A8"}
+
 
 @st.cache_data
 def load_datasets_from_zip() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -190,6 +194,42 @@ def _prepare_q2_economics(
     return metrics, user_dist, request_cost_dist, cost_by_model_user
 
 
+def _prepare_latency_points(research_requests: pd.DataFrame) -> pd.DataFrame | None:
+    rr = _lowercase_columns(research_requests)
+    if not {"model", "response_time_seconds"}.issubset(rr.columns):
+        return None
+    rr["model"] = rr["model"].astype(str).str.lower().str.strip()
+    rr["response_time_seconds"] = pd.to_numeric(rr["response_time_seconds"], errors="coerce")
+    return rr[rr["model"].isin(["mini", "pro"])].dropna(subset=["response_time_seconds"])
+
+
+def _prepare_pareto(research_requests: pd.DataFrame) -> tuple[pd.DataFrame, float] | None:
+    rr = _lowercase_columns(research_requests)
+    if "user_id" not in rr.columns:
+        return None
+    rr["user_id"] = pd.to_numeric(rr["user_id"], errors="coerce")
+    rr = rr.dropna(subset=["user_id"]).copy()
+    rr["user_id"] = rr["user_id"].astype(int)
+    counts = rr.groupby("user_id").size().sort_values(ascending=False)
+    if counts.empty:
+        return None
+
+    pareto = pd.DataFrame({"requests": counts.values})
+    pareto["cum_requests_pct"] = 100.0 * pareto["requests"].cumsum() / pareto["requests"].sum()
+    pareto["cum_users_pct"] = 100.0 * (pareto.index + 1) / len(pareto)
+    pareto = pd.concat(
+        [
+            pd.DataFrame({"cum_users_pct": [0.0], "cum_requests_pct": [0.0]}),
+            pareto[["cum_users_pct", "cum_requests_pct"]],
+        ],
+        ignore_index=True,
+    )
+    y_at_5 = float(
+        pareto.loc[pareto["cum_users_pct"] >= 5.0, "cum_requests_pct"].head(1).fillna(0.0).iloc[0]
+    )
+    return pareto, y_at_5
+
+
 def render_product_analysis_and_cost(
     users: pd.DataFrame, hourly_usage: pd.DataFrame, research_requests: pd.DataFrame
 ) -> None:
@@ -207,11 +247,6 @@ def render_product_analysis_and_cost(
         if active_joined_users_count > 0
         else 0.0
     )
-    if research_first_count == 0:
-        not_retained_pct = 0.0
-    else:
-        retention_pct = 100.0 * lifecycle.loc[research_first, "retained_30d"].mean()
-        not_retained_pct = 100.0 - retention_pct
 
     q2_data = _prepare_q2_economics(users, research_requests)
     if q2_data is None:
@@ -273,17 +308,10 @@ def render_product_analysis_and_cost(
             st.plotly_chart(fig_retention, use_container_width=True)
 
     with col2:
-        rr = _lowercase_columns(research_requests)
-        if not {"model", "response_time_seconds"}.issubset(rr.columns):
+        latency_points = _prepare_latency_points(research_requests)
+        if latency_points is None:
             st.warning("Missing `model` or `response_time_seconds` in research data.")
         else:
-            rr["model"] = rr["model"].astype(str).str.lower().str.strip()
-            rr["response_time_seconds"] = pd.to_numeric(
-                rr["response_time_seconds"], errors="coerce"
-            )
-            latency_points = rr[rr["model"].isin(["mini", "pro"])].dropna(
-                subset=["response_time_seconds"]
-            )
             if latency_points.empty:
                 st.warning("No usable Mini/Pro response-time data found.")
             else:
@@ -298,7 +326,7 @@ def render_product_analysis_and_cost(
                     },
                     points=False,
                     color="model",
-                    color_discrete_map={"mini": "#72B7B2", "pro": "#E45756"},
+                    color_discrete_map=MODEL_COLORS,
                 )
                 fig_latency.update_layout(
                     template="simple_white",
@@ -322,29 +350,15 @@ def render_product_analysis_and_cost(
                 st.plotly_chart(fig_latency, use_container_width=True)
 
     # Pareto: concentration of research traffic.
-    rr = _lowercase_columns(research_requests)
-    if "user_id" not in rr.columns:
+    rr_cols = _lowercase_columns(research_requests)
+    if "user_id" not in rr_cols.columns:
         st.warning("Missing `user_id` in research requests for Pareto chart.")
         return
-    rr["user_id"] = pd.to_numeric(rr["user_id"], errors="coerce")
-    rr = rr.dropna(subset=["user_id"]).copy()
-    rr["user_id"] = rr["user_id"].astype(int)
-    counts = rr.groupby("user_id").size().sort_values(ascending=False)
-    if counts.empty:
+    pareto_data = _prepare_pareto(research_requests)
+    if pareto_data is None:
         st.warning("No research requests available for Pareto chart.")
         return
-
-    pareto = pd.DataFrame({"requests": counts.values})
-    pareto["cum_requests_pct"] = 100.0 * pareto["requests"].cumsum() / pareto["requests"].sum()
-    pareto["cum_users_pct"] = 100.0 * (pareto.index + 1) / len(pareto)
-    pareto = pd.concat(
-        [
-            pd.DataFrame({"cum_users_pct": [0.0], "cum_requests_pct": [0.0]}),
-            pareto[["cum_users_pct", "cum_requests_pct"]],
-        ],
-        ignore_index=True,
-    )
-
+    pareto, y_at_5 = pareto_data
     fig_pareto = px.line(
         pareto,
         x="cum_users_pct",
@@ -354,9 +368,6 @@ def render_product_analysis_and_cost(
             "cum_users_pct": "Cumulative % of Users",
             "cum_requests_pct": "Cumulative % of Total Requests",
         },
-    )
-    y_at_5 = float(
-        pareto.loc[pareto["cum_users_pct"] >= 5.0, "cum_requests_pct"].head(1).fillna(0.0).iloc[0]
     )
     fig_pareto.add_trace(
         go.Scatter(
@@ -404,7 +415,7 @@ def render_product_analysis_and_cost(
             hole=0.5,
             title="<b>User Base: Free vs. Paid</b>",
             color="user_type",
-            color_discrete_map={"Free Users": "#F58518", "Paid Users": "#4C78A8"},
+            color_discrete_map=USER_COLORS,
         )
         fig_user_dist.update_layout(
             template="simple_white",
@@ -425,7 +436,7 @@ def render_product_analysis_and_cost(
             title="<b>Average Cost per Request by Model</b>",
             labels={"model": "Model", "request_cost": "Average Request Cost ($)"},
             color="model",
-            color_discrete_map={"MINI": "#72B7B2", "PRO": "#E45756"},
+            color_discrete_map=MODEL_COLORS_UPPER,
             points=False,
         )
         fig_avg_cost.update_layout(
@@ -454,7 +465,7 @@ def render_product_analysis_and_cost(
             "request_cost": "Total Request Cost ($)",
             "user_type": "User Type",
         },
-        color_discrete_map={"Free Users": "#F58518", "Paid Users": "#4C78A8"},
+        color_discrete_map=USER_COLORS,
     )
     fig_stacked.update_layout(
         template="simple_white",
@@ -485,11 +496,10 @@ def main() -> None:
 
     (
         hourly_usage,
-        Infrastructure_costs,
+        _infrastructure_costs,
         research_requests,
         users,
     ) = load_datasets_from_zip()
-    _ = (hourly_usage, Infrastructure_costs, research_requests, users)
 
     page = st.sidebar.radio(
         "Pages",
