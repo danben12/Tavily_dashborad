@@ -258,6 +258,9 @@ def render_product_analysis_and_cost(
                 },
             )
             fig_retention.update_traces(textposition="outside", cliponaxis=False)
+            fig_retention.update_traces(
+                hovertemplate="%{x}<br>Retention: %{y:.2f}%<extra></extra>"
+            )
             fig_retention.update_layout(
                 template="simple_white",
                 showlegend=False,
@@ -305,6 +308,9 @@ def render_product_analysis_and_cost(
                     font=dict(size=13),
                     legend_title_text="",
                     margin=dict(t=60, b=40, l=30, r=30),
+                )
+                fig_latency.update_traces(
+                    hovertemplate="Model: %{x}<br>Response Time: %{y:.2f} sec<extra></extra>"
                 )
                 st.plotly_chart(fig_latency, use_container_width=True)
 
@@ -367,6 +373,14 @@ def render_product_analysis_and_cost(
         line=dict(color="#FF7F0E", width=2, dash="dot"),
         fill=None,
     )
+    fig_pareto.update_traces(
+        selector=dict(name="cum_requests_pct"),
+        hovertemplate="Users: %{x:.2f}%<br>Requests: %{y:.2f}%<extra></extra>",
+    )
+    fig_pareto.update_traces(
+        selector=dict(name="Linear baseline"),
+        hovertemplate="Users: %{x:.2f}%<br>Linear: %{y:.2f}%<extra></extra>",
+    )
     fig_pareto.update_layout(
         template="simple_white",
         title_font=dict(size=20),
@@ -395,6 +409,9 @@ def render_product_analysis_and_cost(
             font=dict(size=13),
             legend_title_text="",
         )
+        fig_user_dist.update_traces(
+            hovertemplate="%{label}: %{value:,.2f} users<br>Share: %{percent:.2%}<extra></extra>"
+        )
         st.plotly_chart(fig_user_dist, use_container_width=True)
 
     with col4:
@@ -415,6 +432,9 @@ def render_product_analysis_and_cost(
             xaxis_title_font=dict(size=14),
             yaxis_title_font=dict(size=14),
             font=dict(size=13),
+        )
+        fig_avg_cost.update_traces(
+            hovertemplate="Model: %{x}<br>Request Cost: $%{y:,.2f}<extra></extra>"
         )
         fig_avg_cost.update_yaxes(tickprefix="$")
         st.plotly_chart(fig_avg_cost, use_container_width=True)
@@ -440,6 +460,9 @@ def render_product_analysis_and_cost(
         yaxis_title_font=dict(size=14),
         font=dict(size=13),
         legend_title_text="",
+    )
+    fig_stacked.update_traces(
+        hovertemplate="Model: %{x}<br>User Type: %{fullData.name}<br>Total Cost: $%{y:,.2f}<extra></extra>"
     )
     fig_stacked.update_yaxes(tickprefix="$")
     st.plotly_chart(fig_stacked, use_container_width=True)
