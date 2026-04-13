@@ -161,8 +161,19 @@ def render_product_analysis_and_cost(
     )
 
     # KPI 1: Acquisition + churn for users first acquired by Research API.
-    join_cutoff = pd.Timestamp("2025-11-01", tz="UTC")
-    new_users = users_l.loc[users_l["created_at"] > join_cutoff, ["user_id"]].drop_duplicates()
+    rr_for_launch = _lowercase_columns(research_requests)
+    if "timestamp" not in rr_for_launch.columns:
+        st.error("Missing `timestamp` in research requests dataset.")
+        return
+    rr_for_launch["timestamp"] = pd.to_datetime(
+        rr_for_launch["timestamp"], errors="coerce", utc=True
+    )
+    launch_ts = rr_for_launch["timestamp"].dropna().min()
+    if pd.isna(launch_ts):
+        st.error("Could not determine Research API launch timestamp from research data.")
+        return
+
+    new_users = users_l.loc[users_l["created_at"] > launch_ts, ["user_id"]].drop_duplicates()
     new_lifecycle = new_users.merge(lifecycle, on="user_id", how="inner")
 
     if len(new_lifecycle) == 0:
