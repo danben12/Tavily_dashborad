@@ -51,7 +51,7 @@ def load_datasets_from_zip() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, 
 
 
 def render_product_analysis_and_cost() -> None:
-    st.header("Product Analysis and Cost")
+    st.header("Product Analysis")
     st.write("Content placeholder")
 
 
@@ -67,8 +67,6 @@ def main() -> None:
         layout="wide",
     )
 
-    st.title("Tavily Dashboard")
-
     (
         hourly_usage,
         Infrastructure_costs,
@@ -79,10 +77,10 @@ def main() -> None:
 
     page = st.sidebar.radio(
         "Pages",
-        ["Product Analysis and Cost", "Infrastructure & Cost Analysis"],
+        ["Product Analysis", "Infrastructure & Cost Analysis"],
     )
 
-    if page == "Product Analysis and Cost":
+    if page == "Product Analysis":
         render_product_analysis_and_cost()
     else:
         render_infrastructure_and_cost_analysis()
