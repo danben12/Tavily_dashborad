@@ -122,10 +122,79 @@ def _retention_by_segment(lifecycle: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _prepare_q2_economics(
+    users: pd.DataFrame, research_requests: pd.DataFrame
+) -> tuple[dict, pd.DataFrame, pd.DataFrame, pd.DataFrame] | None:
+    users_l = _lowercase_columns(users)
+    rr = _lowercase_columns(research_requests)
+    required_users = {"user_id", "has_paygo"}
+    required_rr = {"user_id", "model", "request_cost"}
+    if not required_users.issubset(users_l.columns) or not required_rr.issubset(rr.columns):
+        return None
+
+    users_l = users_l.copy()
+    users_l["user_id"] = pd.to_numeric(users_l["user_id"], errors="coerce")
+    users_l = users_l.dropna(subset=["user_id"]).copy()
+    users_l["user_id"] = users_l["user_id"].astype(int)
+    users_l["has_paygo_bool"] = (
+        users_l["has_paygo"].astype(str).str.strip().str.lower().eq("true")
+    )
+    users_l = users_l.drop_duplicates(subset=["user_id"], keep="first")
+    users_l["user_type"] = users_l["has_paygo_bool"].map(
+        {True: "Paid Users", False: "Free Users"}
+    )
+
+    rr = rr.copy()
+    rr["user_id"] = pd.to_numeric(rr["user_id"], errors="coerce")
+    rr["request_cost"] = pd.to_numeric(rr["request_cost"], errors="coerce")
+    rr = rr.dropna(subset=["user_id", "request_cost"]).copy()
+    rr["user_id"] = rr["user_id"].astype(int)
+    rr["model"] = rr["model"].astype(str).str.strip().str.lower()
+
+    merged = rr.merge(
+        users_l[["user_id", "has_paygo_bool", "user_type"]], on="user_id", how="left"
+    )
+    merged["has_paygo_bool"] = merged["has_paygo_bool"].fillna(False)
+    merged["user_type"] = merged["user_type"].fillna("Free Users")
+
+    free_pro = merged[
+        (~merged["has_paygo_bool"]) & (merged["model"] == "pro")
+    ].copy()
+    total_pro_cost_free = float(free_pro["request_cost"].sum())
+    pro_requests_free_count = int(len(free_pro))
+    mini_avg_cost = float(
+        rr.loc[rr["model"] == "mini", "request_cost"].mean()
+    ) if (rr["model"] == "mini").any() else 0.0
+    hypothetical_mini_cost = float(pro_requests_free_count * mini_avg_cost)
+    potential_savings = float(total_pro_cost_free - hypothetical_mini_cost)
+
+    user_dist = (
+        users_l.drop_duplicates(subset=["user_id"])
+        .groupby("user_type", as_index=False)["user_id"]
+        .nunique()
+        .rename(columns={"user_id": "users"})
+    )
+    avg_cost = (
+        rr[rr["model"].isin(["mini", "pro"])]
+        .groupby("model", as_index=False)["request_cost"]
+        .mean()
+    )
+    cost_by_model_user = (
+        merged.groupby(["model", "user_type"], as_index=False)["request_cost"].sum()
+    )
+    cost_by_model_user = cost_by_model_user[cost_by_model_user["model"].isin(["mini", "pro"])]
+
+    metrics = {
+        "total_pro_cost_free": total_pro_cost_free,
+        "potential_savings": potential_savings,
+    }
+    return metrics, user_dist, avg_cost, cost_by_model_user
+
+
 def render_product_analysis_and_cost(
     users: pd.DataFrame, hourly_usage: pd.DataFrame, research_requests: pd.DataFrame
 ) -> None:
-    lifecycle, joined_users_count = _build_hourly_lifecycle(users, hourly_usage)
+    lifecycle, _joined_users_count = _build_hourly_lifecycle(users, hourly_usage)
     if lifecycle.empty:
         st.error("Could not build lifecycle table from users and hourly usage.")
         return
@@ -143,16 +212,29 @@ def render_product_analysis_and_cost(
         retention_pct = 100.0 * lifecycle.loc[research_first, "retained_30d"].mean()
         not_retained_pct = 100.0 - retention_pct
 
-    st.metric(
-        "Research API Acquisition (New Users)",
-        f"{acquisition_pct:.1f}%",
-        help=(
-            "Acquisition = users with first hourly request_type = research divided by active users "
-            "created on/after 2025-11-01 (active = at least one valid hourly event after signup). "
-            "Users not retained = 100% - retention for research-first users, "
-            "where retention means last hourly activity is at least 30 days after first hourly activity."
-        ),
-    )
+    q2_data = _prepare_q2_economics(users, research_requests)
+    if q2_data is None:
+        st.error("Missing required columns for economics analysis.")
+        return
+    q2_metrics, user_dist, avg_cost, cost_by_model_user = q2_data
+
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        st.metric(
+            "Research API Acquisition (New Users)",
+            f"{acquisition_pct:.1f}%",
+            help=(
+                "Acquisition = users with first hourly request_type = research divided by active users "
+                "created on/after 2025-11-01 (active = at least one valid hourly event after signup). "
+                "Users not retained = 100% - retention for research-first users, "
+                "where retention means last hourly activity is at least 30 days after first hourly activity."
+            ),
+        )
+    with m2:
+        st.metric("Total Pro Cost from Free Users", f"${q2_metrics['total_pro_cost_free']:,.2f}")
+    with m3:
+        st.metric("Potential Savings", f"${q2_metrics['potential_savings']:,.2f}")
+
     col1, col2 = st.columns(2)
 
     with col1:
@@ -226,10 +308,6 @@ def render_product_analysis_and_cost(
                 st.plotly_chart(fig_latency, use_container_width=True)
 
     # Pareto: concentration of research traffic.
-    st.caption(
-        "Calculation: count research requests per user, sort descending, then plot cumulative % users "
-        "vs cumulative % total requests. Dashed lines mark 5% users and their request share."
-    )
     rr = _lowercase_columns(research_requests)
     if "user_id" not in rr.columns:
         st.warning("Missing `user_id` in research requests for Pareto chart.")
@@ -298,75 +376,9 @@ def render_product_analysis_and_cost(
     )
     st.plotly_chart(fig_pareto, use_container_width=True)
 
-    st.markdown("---")
-    render_q2_free_tier_economics(users, research_requests)
+    col3, col4 = st.columns(2)
 
-
-def render_q2_free_tier_economics(
-    users: pd.DataFrame, research_requests: pd.DataFrame
-) -> None:
-    st.header("Q2: Free Tier Unit Economics & Infrastructure Costs")
-
-    users_l = _lowercase_columns(users)
-    rr = _lowercase_columns(research_requests)
-    required_users = {"user_id", "has_paygo"}
-    required_rr = {"user_id", "model", "request_cost"}
-    if not required_users.issubset(users_l.columns) or not required_rr.issubset(rr.columns):
-        st.error("Missing required columns for Q2 analysis.")
-        return
-
-    users_l = users_l.copy()
-    users_l["user_id"] = pd.to_numeric(users_l["user_id"], errors="coerce")
-    users_l = users_l.dropna(subset=["user_id"]).copy()
-    users_l["user_id"] = users_l["user_id"].astype(int)
-    users_l["has_paygo_bool"] = (
-        users_l["has_paygo"].astype(str).str.strip().str.lower().eq("true")
-    )
-    users_l = users_l.drop_duplicates(subset=["user_id"], keep="first")
-    users_l["user_type"] = users_l["has_paygo_bool"].map(
-        {True: "Paid Users", False: "Free Users"}
-    )
-
-    rr = rr.copy()
-    rr["user_id"] = pd.to_numeric(rr["user_id"], errors="coerce")
-    rr["request_cost"] = pd.to_numeric(rr["request_cost"], errors="coerce")
-    rr = rr.dropna(subset=["user_id", "request_cost"]).copy()
-    rr["user_id"] = rr["user_id"].astype(int)
-    rr["model"] = rr["model"].astype(str).str.strip().str.lower()
-
-    merged = rr.merge(
-        users_l[["user_id", "has_paygo_bool", "user_type"]], on="user_id", how="left"
-    )
-    merged["has_paygo_bool"] = merged["has_paygo_bool"].fillna(False)
-    merged["user_type"] = merged["user_type"].fillna("Free Users")
-
-    free_pro = merged[
-        (~merged["has_paygo_bool"]) & (merged["model"] == "pro")
-    ].copy()
-    total_pro_cost_free = float(free_pro["request_cost"].sum())
-
-    pro_requests_free_count = int(len(free_pro))
-    mini_avg_cost = float(
-        rr.loc[rr["model"] == "mini", "request_cost"].mean()
-    ) if (rr["model"] == "mini").any() else 0.0
-    hypothetical_mini_cost = float(pro_requests_free_count * mini_avg_cost)
-    potential_savings = float(total_pro_cost_free - hypothetical_mini_cost)
-
-    k1, k2 = st.columns(2)
-    with k1:
-        st.metric("Total Pro Cost from Free Users", f"${total_pro_cost_free:,.2f}")
-    with k2:
-        st.metric("Potential Savings", f"${potential_savings:,.2f}")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        user_dist = (
-            users_l.drop_duplicates(subset=["user_id"])
-            .groupby("user_type", as_index=False)["user_id"]
-            .nunique()
-            .rename(columns={"user_id": "users"})
-        )
+    with col3:
         fig_user_dist = px.pie(
             user_dist,
             values="users",
@@ -384,12 +396,7 @@ def render_q2_free_tier_economics(
         )
         st.plotly_chart(fig_user_dist, use_container_width=True)
 
-    with col2:
-        avg_cost = (
-            rr[rr["model"].isin(["mini", "pro"])]
-            .groupby("model", as_index=False)["request_cost"]
-            .mean()
-        )
+    with col4:
         fig_avg_cost = px.bar(
             avg_cost,
             x="model",
@@ -412,10 +419,6 @@ def render_q2_free_tier_economics(
         fig_avg_cost.update_yaxes(tickprefix="$")
         st.plotly_chart(fig_avg_cost, use_container_width=True)
 
-    cost_by_model_user = (
-        merged.groupby(["model", "user_type"], as_index=False)["request_cost"].sum()
-    )
-    cost_by_model_user = cost_by_model_user[cost_by_model_user["model"].isin(["mini", "pro"])]
     fig_stacked = px.bar(
         cost_by_model_user,
         x="model",
