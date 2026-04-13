@@ -850,35 +850,35 @@ def render_infrastructure_and_cost_analysis(
         fig_growth = make_subplots(specs=[[{"secondary_y": True}]])
         fig_growth.add_trace(
             go.Scatter(
-                x=monthly_agg["month"],
-                y=monthly_agg["total_requests"],
+                x=hourly_agg["hour"],
+                y=hourly_agg["total_requests"],
                 name="Total Requests",
                 mode="lines+markers",
                 line=dict(color="#4C78A8", width=3),
-                hovertemplate="Month: %{x}<br>Requests: %{y:,.0f}<extra></extra>",
+                hovertemplate="Hour: %{x}<br>Requests: %{y:,.0f}<extra></extra>",
             ),
             secondary_y=False,
         )
         fig_growth.add_trace(
             go.Scatter(
-                x=monthly_agg["month"],
-                y=monthly_agg["infra_total_cost"],
+                x=hourly_agg["hour"],
+                y=hourly_agg["infra_total_cost"],
                 name="Infrastructure Cost",
                 mode="lines+markers",
                 line=dict(color="#E45756", width=3),
-                hovertemplate="Month: %{x}<br>Infrastructure Cost: $%{y:,.2f}<extra></extra>",
+                hovertemplate="Hour: %{x}<br>Infrastructure Cost: $%{y:,.2f}<extra></extra>",
             ),
             secondary_y=True,
         )
         fig_growth.update_layout(
             template="simple_white",
-            title="<b>The Growth Paradox: Requests vs Infrastructure Cost</b>",
+            title="<b>The Growth Paradox: Requests vs Infrastructure Cost Over Time</b>",
             title_font=dict(size=20),
             font=dict(size=13),
             legend_title_text="",
             margin=dict(t=70, b=40, l=30, r=30),
         )
-        fig_growth.update_xaxes(title_text="Month")
+        fig_growth.update_xaxes(title_text="Time")
         fig_growth.update_yaxes(title_text="Total Requests", secondary_y=False)
         fig_growth.update_yaxes(
             title_text="Total Infrastructure Cost ($)",
