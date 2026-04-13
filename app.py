@@ -834,7 +834,7 @@ def render_infrastructure_and_cost_analysis(
             names="category",
             values="cost",
             hole=0.5,
-            title="<b>The AI Illusion: Budget Split</b>",
+            title="<b>Budget Split: Infrastructure vs Model Cost</b>",
             color="category",
             color_discrete_map={
                 "Hardware & Infrastructure": "#4C78A8",
