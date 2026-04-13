@@ -6,40 +6,48 @@ import streamlit as st
 
 
 @st.cache_data
-def load_dataset(filename: str = "hourly_usage.csv") -> pd.DataFrame:
-    """Load a CSV dataset from zip/app folder/parent folder."""
+def load_datasets_from_zip() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Load all required datasets from data.zip in the app directory."""
     app_dir = Path(__file__).resolve().parent
-    parent_dir = app_dir.parent
     zip_path = app_dir / "data.zip"
+    required_files = (
+        "hourly_usage.csv",
+        "infrastructure_costs.csv",
+        "research_requests.csv",
+        "users.csv",
+    )
 
-    if zip_path.is_file():
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            if filename in zf.namelist():
-                with zf.open(filename) as dataset_file:
-                    return pd.read_csv(dataset_file)
+    if not zip_path.is_file():
+        raise FileNotFoundError(f"Could not find data archive at '{zip_path}'.")
 
-    for candidate in (app_dir / filename, parent_dir / filename):
-        if candidate.is_file():
-            return pd.read_csv(candidate)
+    loaded_frames: dict[str, pd.DataFrame] = {}
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        members = set(zf.namelist())
+        missing = [name for name in required_files if name not in members]
+        if missing:
+            raise FileNotFoundError(
+                f"Missing required files in data.zip: {', '.join(missing)}"
+            )
+        for name in required_files:
+            with zf.open(name) as dataset_file:
+                loaded_frames[name] = pd.read_csv(dataset_file)
 
-    raise FileNotFoundError(
-        f"Could not find '{filename}'. Tried: '{zip_path}' (zip member), "
-        f"'{app_dir / filename}', '{parent_dir / filename}'."
+    return (
+        loaded_frames["hourly_usage.csv"],
+        loaded_frames["infrastructure_costs.csv"],
+        loaded_frames["research_requests.csv"],
+        loaded_frames["users.csv"],
     )
 
 
 def render_product_analysis_and_cost() -> None:
     st.header("Product Analysis and Cost")
-    df = load_dataset()
-    st.write("Dataset loaded successfully.")
-    st.dataframe(df.head(20), use_container_width=True)
+    st.write("Content placeholder")
 
 
 def render_infrastructure_and_cost_analysis() -> None:
     st.header("Infrastructure & Cost Analysis")
-    df = load_dataset()
-    st.write("Dataset loaded successfully.")
-    st.dataframe(df.head(20), use_container_width=True)
+    st.write("Content placeholder")
 
 
 def main() -> None:
@@ -50,6 +58,14 @@ def main() -> None:
     )
 
     st.title("Tavily Dashboard")
+
+    (
+        hourly_usage,
+        Infrastructure_costs,
+        research_requests,
+        users,
+    ) = load_datasets_from_zip()
+    _ = (hourly_usage, Infrastructure_costs, research_requests, users)
 
     page = st.sidebar.radio(
         "Pages",
