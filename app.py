@@ -122,8 +122,6 @@ def _retention_by_cohort(events: pd.DataFrame) -> pd.DataFrame:
 def render_product_analysis_and_cost(
     users: pd.DataFrame, hourly_usage: pd.DataFrame, research_requests: pd.DataFrame
 ) -> None:
-    st.header("Q1: Research API - Acquisition, Retention & Usage Concentration")
-
     users_l = _lowercase_columns(users)
     if not {"user_id", "created_at"}.issubset(users_l.columns):
         st.error("Missing required columns in users dataset (`user_id`, `created_at`).")
