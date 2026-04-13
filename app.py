@@ -127,7 +127,7 @@ def _prepare_q2_economics(
 ) -> tuple[dict, pd.DataFrame, pd.DataFrame, pd.DataFrame] | None:
     users_l = _lowercase_columns(users)
     rr = _lowercase_columns(research_requests)
-    required_users = {"user_id", "has_paygo"}
+    required_users = {"user_id", "has_paygo", "plan"}
     required_rr = {"user_id", "model", "request_cost"}
     if not required_users.issubset(users_l.columns) or not required_rr.issubset(rr.columns):
         return None
@@ -139,8 +139,10 @@ def _prepare_q2_economics(
     users_l["has_paygo_bool"] = (
         users_l["has_paygo"].astype(str).str.strip().str.lower().eq("true")
     )
+    users_l["plan_norm"] = users_l["plan"].astype(str).str.strip().str.lower()
+    users_l["is_paid_user"] = users_l["has_paygo_bool"] | (~users_l["plan_norm"].eq("researcher"))
     users_l = users_l.drop_duplicates(subset=["user_id"], keep="first")
-    users_l["user_type"] = users_l["has_paygo_bool"].map(
+    users_l["user_type"] = users_l["is_paid_user"].map(
         {True: "Paid Users", False: "Free Users"}
     )
 
@@ -152,13 +154,13 @@ def _prepare_q2_economics(
     rr["model"] = rr["model"].astype(str).str.strip().str.lower()
 
     merged = rr.merge(
-        users_l[["user_id", "has_paygo_bool", "user_type"]], on="user_id", how="left"
+        users_l[["user_id", "is_paid_user", "user_type"]], on="user_id", how="left"
     )
-    merged["has_paygo_bool"] = merged["has_paygo_bool"].fillna(False)
+    merged["is_paid_user"] = merged["is_paid_user"].fillna(False).astype(bool)
     merged["user_type"] = merged["user_type"].fillna("Free Users")
 
     free_pro = merged[
-        (~merged["has_paygo_bool"]) & (merged["model"] == "pro")
+        (~merged["is_paid_user"]) & (merged["model"] == "pro")
     ].copy()
     total_pro_cost_free = float(free_pro["request_cost"].sum())
     pro_requests_free_count = int(len(free_pro))
