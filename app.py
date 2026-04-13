@@ -299,9 +299,144 @@ def render_product_analysis_and_cost(
     st.plotly_chart(fig_pareto, use_container_width=True)
 
 
-def render_infrastructure_and_cost_analysis() -> None:
-    st.header("Infrastructure & Cost Analysis")
-    st.write("Content placeholder")
+def render_infrastructure_and_cost_analysis(
+    users: pd.DataFrame, research_requests: pd.DataFrame
+) -> None:
+    st.header("Q2: Free Tier Unit Economics & Infrastructure Costs")
+
+    users_l = _lowercase_columns(users)
+    rr = _lowercase_columns(research_requests)
+    required_users = {"user_id", "has_paygo"}
+    required_rr = {"user_id", "model", "request_cost"}
+    if not required_users.issubset(users_l.columns) or not required_rr.issubset(rr.columns):
+        st.error("Missing required columns for Q2 analysis.")
+        return
+
+    users_l = users_l.copy()
+    users_l["user_id"] = pd.to_numeric(users_l["user_id"], errors="coerce")
+    users_l = users_l.dropna(subset=["user_id"]).copy()
+    users_l["user_id"] = users_l["user_id"].astype(int)
+    users_l["has_paygo_bool"] = (
+        users_l["has_paygo"].astype(str).str.strip().str.lower().eq("true")
+    )
+    users_l = users_l.drop_duplicates(subset=["user_id"], keep="first")
+    users_l["user_type"] = users_l["has_paygo_bool"].map(
+        {True: "Paid Users", False: "Free Users"}
+    )
+
+    rr = rr.copy()
+    rr["user_id"] = pd.to_numeric(rr["user_id"], errors="coerce")
+    rr["request_cost"] = pd.to_numeric(rr["request_cost"], errors="coerce")
+    rr = rr.dropna(subset=["user_id", "request_cost"]).copy()
+    rr["user_id"] = rr["user_id"].astype(int)
+    rr["model"] = rr["model"].astype(str).str.strip().str.lower()
+
+    merged = rr.merge(
+        users_l[["user_id", "has_paygo_bool", "user_type"]], on="user_id", how="left"
+    )
+    merged["has_paygo_bool"] = merged["has_paygo_bool"].fillna(False)
+    merged["user_type"] = merged["user_type"].fillna("Free Users")
+
+    free_pro = merged[
+        (~merged["has_paygo_bool"]) & (merged["model"] == "pro")
+    ].copy()
+    total_pro_cost_free = float(free_pro["request_cost"].sum())
+
+    pro_requests_free_count = int(len(free_pro))
+    mini_avg_cost = float(
+        rr.loc[rr["model"] == "mini", "request_cost"].mean()
+    ) if (rr["model"] == "mini").any() else 0.0
+    hypothetical_mini_cost = float(pro_requests_free_count * mini_avg_cost)
+    potential_savings = float(total_pro_cost_free - hypothetical_mini_cost)
+
+    k1, k2 = st.columns(2)
+    with k1:
+        st.metric("Total Pro Cost from Free Users", f"${total_pro_cost_free:,.2f}")
+    with k2:
+        st.metric("Potential Savings", f"${potential_savings:,.2f}")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        user_dist = (
+            users_l.drop_duplicates(subset=["user_id"])
+            .groupby("user_type", as_index=False)["user_id"]
+            .nunique()
+            .rename(columns={"user_id": "users"})
+        )
+        fig_user_dist = px.pie(
+            user_dist,
+            values="users",
+            names="user_type",
+            hole=0.5,
+            title="<b>User Base: Free vs. Paid</b>",
+            color="user_type",
+            color_discrete_map={"Free Users": "#F58518", "Paid Users": "#4C78A8"},
+        )
+        fig_user_dist.update_layout(
+            template="simple_white",
+            title_font=dict(size=20),
+            font=dict(size=13),
+            legend_title_text="",
+        )
+        st.plotly_chart(fig_user_dist, use_container_width=True)
+
+    with col2:
+        avg_cost = (
+            rr[rr["model"].isin(["mini", "pro"])]
+            .groupby("model", as_index=False)["request_cost"]
+            .mean()
+        )
+        fig_avg_cost = px.bar(
+            avg_cost,
+            x="model",
+            y="request_cost",
+            title="<b>Average Cost per Request by Model</b>",
+            labels={"model": "Model", "request_cost": "Average Request Cost ($)"},
+            color="model",
+            color_discrete_map={"mini": "#72B7B2", "pro": "#E45756"},
+            text=avg_cost["request_cost"].map(lambda x: f"${x:,.4f}"),
+        )
+        fig_avg_cost.update_traces(textposition="outside", cliponaxis=False)
+        fig_avg_cost.update_layout(
+            template="simple_white",
+            showlegend=False,
+            title_font=dict(size=20),
+            xaxis_title_font=dict(size=14),
+            yaxis_title_font=dict(size=14),
+            font=dict(size=13),
+        )
+        fig_avg_cost.update_yaxes(tickprefix="$")
+        st.plotly_chart(fig_avg_cost, use_container_width=True)
+
+    cost_by_model_user = (
+        merged.groupby(["model", "user_type"], as_index=False)["request_cost"].sum()
+    )
+    cost_by_model_user = cost_by_model_user[cost_by_model_user["model"].isin(["mini", "pro"])]
+    fig_stacked = px.bar(
+        cost_by_model_user,
+        x="model",
+        y="request_cost",
+        color="user_type",
+        barmode="stack",
+        title="<b>Total Infrastructure Cost by Model and User Type</b>",
+        labels={
+            "model": "Model",
+            "request_cost": "Total Request Cost ($)",
+            "user_type": "User Type",
+        },
+        color_discrete_map={"Free Users": "#F58518", "Paid Users": "#4C78A8"},
+    )
+    fig_stacked.update_layout(
+        template="simple_white",
+        title_font=dict(size=20),
+        xaxis_title_font=dict(size=14),
+        yaxis_title_font=dict(size=14),
+        font=dict(size=13),
+        legend_title_text="",
+    )
+    fig_stacked.update_yaxes(tickprefix="$")
+    st.plotly_chart(fig_stacked, use_container_width=True)
 
 
 def main() -> None:
@@ -327,7 +462,7 @@ def main() -> None:
     if page == "Product Analysis":
         render_product_analysis_and_cost(users, hourly_usage, research_requests)
     else:
-        render_infrastructure_and_cost_analysis()
+        render_infrastructure_and_cost_analysis(users, research_requests)
 
 
 if __name__ == "__main__":
