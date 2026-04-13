@@ -241,7 +241,7 @@ def _is_cancelled_status(series: pd.Series) -> pd.Series:
 
 
 def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
-    st.header("Q3: UX Breaking Points & Billing Distortions (Cancellations)")
+    st.header("UX Breaking Points & Billing Distortions (Cancellations)")
 
     rr = _lowercase_columns(research_requests)
     required_cols = {
