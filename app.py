@@ -9,7 +9,6 @@ import streamlit as st
 MODEL_COLORS = {"mini": "#72B7B2", "pro": "#E45756"}
 MODEL_COLORS_UPPER = {"MINI": "#72B7B2", "PRO": "#E45756"}
 USER_COLORS = {"Free Users": "#F58518", "Paid Users": "#4C78A8"}
-BOT_CLIENT_SOURCES = {"mcp", "n8n", "langchain", "claude-code"}
 
 
 @st.cache_data
@@ -241,11 +240,6 @@ def _is_cancelled_status(series: pd.Series) -> pd.Series:
     return normalized.str.contains("cancel", na=False)
 
 
-def _segment_client_source(series: pd.Series) -> pd.Series:
-    source_norm = series.astype(str).str.strip().str.lower()
-    return source_norm.map(lambda s: "bot" if s in BOT_CLIENT_SOURCES else "human")
-
-
 def _format_compact_cost(value: float) -> str:
     abs_value = abs(value)
     if abs_value >= 1_000_000:
@@ -260,7 +254,6 @@ def _prepare_q3_top_metrics(research_requests: pd.DataFrame) -> tuple[float, flo
     required_cols = {
         "status",
         "stream",
-        "client_source",
         "response_time_seconds",
         "credits_used",
         "request_cost",
@@ -273,11 +266,7 @@ def _prepare_q3_top_metrics(research_requests: pd.DataFrame) -> tuple[float, flo
     rr["credits_used"] = pd.to_numeric(rr["credits_used"], errors="coerce")
     rr["request_cost"] = pd.to_numeric(rr["request_cost"], errors="coerce")
     rr["is_cancelled"] = _is_cancelled_status(rr["status"])
-    rr["source_segment"] = _segment_client_source(rr["client_source"])
-
-    human_ui = rr[
-        _is_true_stream(rr["stream"]) & rr["source_segment"].eq("human")
-    ].copy()
+    human_ui = rr[_is_true_stream(rr["stream"])].copy()
     human_ui = human_ui.dropna(subset=["response_time_seconds"])
     human_ui["duration_group"] = human_ui["response_time_seconds"].apply(
         lambda x: "< 90 seconds" if x < 90 else ">= 90 seconds"
@@ -301,7 +290,6 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
     required_cols = {
         "status",
         "stream",
-        "client_source",
         "response_time_seconds",
         "llm_calls",
         "num_sources",
@@ -319,11 +307,7 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
     rr["credits_used"] = pd.to_numeric(rr["credits_used"], errors="coerce")
     rr["request_cost"] = pd.to_numeric(rr["request_cost"], errors="coerce")
     rr["is_cancelled"] = _is_cancelled_status(rr["status"])
-    rr["source_segment"] = _segment_client_source(rr["client_source"])
-
-    human_ui = rr[
-        _is_true_stream(rr["stream"]) & rr["source_segment"].eq("human")
-    ].copy()
+    human_ui = rr[_is_true_stream(rr["stream"])].copy()
     human_ui = human_ui.dropna(subset=["response_time_seconds"])
     human_ui["duration_group"] = human_ui["response_time_seconds"].apply(
         lambda x: "< 90 seconds" if x < 90 else ">= 90 seconds"
