@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 
@@ -278,9 +279,28 @@ def render_product_analysis_and_cost(
     y_at_5 = float(
         pareto.loc[pareto["cum_users_pct"] >= 5.0, "cum_requests_pct"].head(1).fillna(0.0).iloc[0]
     )
+    fig_pareto.add_trace(
+        go.Scatter(
+            x=pareto["cum_users_pct"],
+            y=pareto["cum_users_pct"],
+            mode="lines",
+            name="Linear baseline",
+            line=dict(color="#9E9E9E", width=2, dash="dot"),
+        )
+    )
     fig_pareto.add_vline(x=5.0, line_dash="dash", line_color="gray")
     fig_pareto.add_hline(y=y_at_5, line_dash="dash", line_color="gray")
-    fig_pareto.update_traces(line=dict(color="#4C78A8", width=3))
+    fig_pareto.update_traces(
+        selector=dict(type="scatter", mode="lines"),
+        line=dict(color="#4C78A8", width=3),
+        fill="tozeroy",
+        fillcolor="rgba(76,120,168,0.20)",
+    )
+    fig_pareto.update_traces(
+        selector=dict(name="Linear baseline"),
+        line=dict(color="#9E9E9E", width=2, dash="dot"),
+        fill=None,
+    )
     fig_pareto.update_layout(
         template="simple_white",
         title_font=dict(size=20),
