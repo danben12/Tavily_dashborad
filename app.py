@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from plotly.subplots import make_subplots
 
 MODEL_COLORS = {"mini": "#72B7B2", "pro": "#E45756"}
 MODEL_COLORS_UPPER = {"MINI": "#72B7B2", "PRO": "#E45756"}
@@ -443,6 +444,80 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
     st.plotly_chart(fig_billing, use_container_width=True)
 
 
+def _prepare_finops_data(
+    infrastructure_costs: pd.DataFrame,
+    hourly_usage: pd.DataFrame,
+    research_requests: pd.DataFrame,
+) -> tuple[dict, pd.DataFrame, pd.DataFrame] | None:
+    infra = _lowercase_columns(infrastructure_costs)
+    hourly = _lowercase_columns(hourly_usage)
+    rr = _lowercase_columns(research_requests)
+
+    if "hour" not in infra.columns:
+        return None
+    infra_cols = [c for c in infra.columns if c.startswith("infra_")]
+    model_cols = [c for c in infra.columns if c.startswith("model_")]
+    if not infra_cols or not model_cols:
+        return None
+
+    infra = infra.copy()
+    infra["hour"] = pd.to_datetime(infra["hour"], errors="coerce", utc=True)
+    infra = infra.dropna(subset=["hour"]).copy()
+    for col in infra_cols + model_cols:
+        infra[col] = pd.to_numeric(infra[col], errors="coerce").fillna(0.0)
+
+    infra["infra_total_cost"] = infra[infra_cols].sum(axis=1)
+    infra["ai_total_cost"] = infra[model_cols].sum(axis=1)
+    total_hardware_cost = float(infra["infra_total_cost"].sum())
+    total_ai_cost = float(infra["ai_total_cost"].sum())
+
+    infra_hourly = infra.groupby("hour", as_index=False)["infra_total_cost"].sum()
+
+    if {"hour", "request_count"}.issubset(hourly.columns):
+        hourly_r = hourly.copy()
+        hourly_r["hour"] = pd.to_datetime(hourly_r["hour"], errors="coerce", utc=True)
+        hourly_r["request_count"] = pd.to_numeric(hourly_r["request_count"], errors="coerce").fillna(0.0)
+        hourly_r = hourly_r.dropna(subset=["hour"]).copy()
+        req_hourly = hourly_r.groupby("hour", as_index=False)["request_count"].sum()
+        req_hourly = req_hourly.rename(columns={"request_count": "total_requests"})
+    elif "timestamp" in rr.columns:
+        rr["timestamp"] = pd.to_datetime(rr["timestamp"], errors="coerce", utc=True)
+        rr = rr.dropna(subset=["timestamp"]).copy()
+        rr["hour"] = rr["timestamp"].dt.floor("h")
+        req_hourly = rr.groupby("hour", as_index=False).size().rename(columns={"size": "total_requests"})
+    else:
+        return None
+
+    hourly_agg = infra_hourly.merge(req_hourly, on="hour", how="outer")
+    hourly_agg["infra_total_cost"] = pd.to_numeric(
+        hourly_agg["infra_total_cost"], errors="coerce"
+    ).fillna(0.0)
+    hourly_agg["total_requests"] = pd.to_numeric(
+        hourly_agg["total_requests"], errors="coerce"
+    ).fillna(0.0)
+    hourly_agg = hourly_agg.sort_values("hour").reset_index(drop=True)
+
+    hourly_agg["month"] = hourly_agg["hour"].dt.tz_convert(None).dt.to_period("M").dt.to_timestamp()
+    monthly_agg = (
+        hourly_agg.groupby("month", as_index=False)[["total_requests", "infra_total_cost"]]
+        .sum()
+        .sort_values("month")
+    )
+    monthly_agg["month_label"] = monthly_agg["month"].dt.strftime("%Y-%m")
+
+    dead_hours = hourly_agg[hourly_agg["total_requests"].eq(0)].copy()
+    wasted_zero_traffic_cost = float(dead_hours["infra_total_cost"].sum())
+    dead_hours_count = int(len(dead_hours))
+
+    metrics = {
+        "total_hardware_cost": total_hardware_cost,
+        "total_ai_cost": total_ai_cost,
+        "wasted_zero_traffic_cost": wasted_zero_traffic_cost,
+        "dead_hours_count": dead_hours_count,
+    }
+    return metrics, hourly_agg, monthly_agg
+
+
 def render_product_analysis_and_cost(
     users: pd.DataFrame, hourly_usage: pd.DataFrame, research_requests: pd.DataFrame
 ) -> None:
@@ -712,9 +787,140 @@ def render_product_analysis_and_cost(
     _render_q3_cancellation_section(research_requests)
 
 
-def render_infrastructure_and_cost_analysis() -> None:
-    st.header("Infrastructure & Cost Analysis")
-    st.write("Content placeholder")
+def render_infrastructure_and_cost_analysis(
+    infrastructure_costs: pd.DataFrame,
+    hourly_usage: pd.DataFrame,
+    research_requests: pd.DataFrame,
+) -> None:
+    st.header("Part 2: Infrastructure & FinOps - The AI Illusion")
+
+    prepared = _prepare_finops_data(infrastructure_costs, hourly_usage, research_requests)
+    if prepared is None:
+        st.error("Missing required fields for Infrastructure & FinOps analysis.")
+        return
+    finops_metrics, hourly_agg, monthly_agg = prepared
+
+    k1, k2, k3 = st.columns(3)
+    with k1:
+        st.metric("Total Hardware Cost", f"${finops_metrics['total_hardware_cost']:,.2f}")
+    with k2:
+        st.metric("Total AI/Model Cost", f"${finops_metrics['total_ai_cost']:,.2f}")
+    with k3:
+        st.metric(
+            "Wasted Zero-Traffic Cost",
+            f"${finops_metrics['wasted_zero_traffic_cost']:,.2f}",
+            delta=f"{finops_metrics['dead_hours_count']:,} dead hours",
+        )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        budget_split = pd.DataFrame(
+            {
+                "category": ["Hardware & Infrastructure", "AI & LLM Tokens"],
+                "cost": [
+                    finops_metrics["total_hardware_cost"],
+                    finops_metrics["total_ai_cost"],
+                ],
+            }
+        )
+        fig_donut = px.pie(
+            budget_split,
+            names="category",
+            values="cost",
+            hole=0.5,
+            title="<b>The AI Illusion: Budget Split</b>",
+            color="category",
+            color_discrete_map={
+                "Hardware & Infrastructure": "#4C78A8",
+                "AI & LLM Tokens": "#E45756",
+            },
+        )
+        fig_donut.update_traces(
+            hovertemplate="%{label}<br>Cost: $%{value:,.2f}<br>Share: %{percent:.2%}<extra></extra>"
+        )
+        fig_donut.update_layout(
+            template="simple_white",
+            title_font=dict(size=20),
+            font=dict(size=13),
+            legend_title_text="",
+        )
+        st.plotly_chart(fig_donut, use_container_width=True)
+
+    with col2:
+        fig_growth = make_subplots(specs=[[{"secondary_y": True}]])
+        fig_growth.add_trace(
+            go.Bar(
+                x=monthly_agg["month_label"],
+                y=monthly_agg["total_requests"],
+                name="Total Requests",
+                marker_color="#4C78A8",
+                hovertemplate="Month: %{x}<br>Requests: %{y:,.0f}<extra></extra>",
+            ),
+            secondary_y=False,
+        )
+        fig_growth.add_trace(
+            go.Scatter(
+                x=monthly_agg["month_label"],
+                y=monthly_agg["infra_total_cost"],
+                name="Infrastructure Cost",
+                mode="lines+markers",
+                line=dict(color="#E45756", width=3),
+                hovertemplate="Month: %{x}<br>Infrastructure Cost: $%{y:,.2f}<extra></extra>",
+            ),
+            secondary_y=True,
+        )
+        fig_growth.update_layout(
+            template="simple_white",
+            title="<b>The Growth Paradox: Requests vs Infrastructure Cost</b>",
+            title_font=dict(size=20),
+            font=dict(size=13),
+            legend_title_text="",
+            margin=dict(t=70, b=40, l=30, r=30),
+        )
+        fig_growth.update_xaxes(title_text="Month")
+        fig_growth.update_yaxes(title_text="Total Requests", secondary_y=False)
+        fig_growth.update_yaxes(
+            title_text="Total Infrastructure Cost ($)",
+            tickprefix="$",
+            secondary_y=True,
+        )
+        st.plotly_chart(fig_growth, use_container_width=True)
+
+    hourly_agg["traffic_type"] = hourly_agg["total_requests"].eq(0).map(
+        {True: "Zero-Traffic Hour", False: "Active Hour"}
+    )
+    fig_scatter = px.scatter(
+        hourly_agg,
+        x="total_requests",
+        y="infra_total_cost",
+        color="traffic_type",
+        custom_data=["traffic_type"],
+        title="<b>The Empty Restaurant: Hourly Infrastructure Inefficiency</b>",
+        labels={
+            "total_requests": "Total Requests in Hour",
+            "infra_total_cost": "Infrastructure Cost in Hour ($)",
+            "traffic_type": "Hour Type",
+        },
+        color_discrete_map={"Zero-Traffic Hour": "#E45756", "Active Hour": "#4C78A8"},
+    )
+    fig_scatter.add_vline(x=0, line_dash="dash", line_color="gray")
+    fig_scatter.update_traces(
+        hovertemplate=(
+            "Requests: %{x:,.0f}<br>"
+            "Infrastructure Cost: $%{y:,.2f}<br>"
+            "Type: %{customdata[0]}<extra></extra>"
+        )
+    )
+    fig_scatter.update_layout(
+        template="simple_white",
+        title_font=dict(size=20),
+        xaxis_title_font=dict(size=14),
+        yaxis_title_font=dict(size=14),
+        font=dict(size=13),
+        legend_title_text="",
+    )
+    fig_scatter.update_yaxes(tickprefix="$")
+    st.plotly_chart(fig_scatter, use_container_width=True)
 
 
 def main() -> None:
@@ -726,7 +932,7 @@ def main() -> None:
 
     (
         hourly_usage,
-        _infrastructure_costs,
+        infrastructure_costs,
         research_requests,
         users,
     ) = load_datasets_from_zip()
@@ -739,7 +945,11 @@ def main() -> None:
     if page == "Product Analysis":
         render_product_analysis_and_cost(users, hourly_usage, research_requests)
     else:
-        render_infrastructure_and_cost_analysis()
+        render_infrastructure_and_cost_analysis(
+            infrastructure_costs,
+            hourly_usage,
+            research_requests,
+        )
 
 
 if __name__ == "__main__":
