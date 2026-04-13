@@ -132,7 +132,9 @@ def render_product_analysis_and_cost(
     research_first_count = int(research_first.sum())
     active_joined_users_count = int(lifecycle["user_id"].nunique())
     acquisition_pct = (
-        100.0 * research_first_count / joined_users_count if joined_users_count > 0 else 0.0
+        100.0 * research_first_count / active_joined_users_count
+        if active_joined_users_count > 0
+        else 0.0
     )
     if research_first_count == 0:
         churn_pct = 0.0
@@ -146,8 +148,9 @@ def render_product_analysis_and_cost(
         delta=f"-{churn_pct:.1f}% churn (Research-first users)",
         delta_color="inverse",
         help=(
-            "Acquisition = users with first hourly request_type = research divided by all users "
-            "created on/after 2025-11-01. Churn = 100% - retention for research-first users, "
+            "Acquisition = users with first hourly request_type = research divided by active users "
+            "created on/after 2025-11-01 (active = at least one valid hourly event after signup). "
+            "Churn = 100% - retention for research-first users, "
             "where retention means last hourly activity is at least 30 days after first hourly activity."
         ),
     )
