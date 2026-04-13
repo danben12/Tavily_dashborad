@@ -139,6 +139,14 @@ def render_product_analysis_and_cost(
     users_l = users_l.dropna(subset=["user_id", "created_at"]).copy()
     users_l["user_id"] = users_l["user_id"].astype(int)
 
+    # Only consider activity on/after account creation for lifecycle metrics.
+    events = events.merge(users_l[["user_id", "created_at"]], on="user_id", how="inner")
+    events = events.loc[events["event_ts"] >= events["created_at"], ["user_id", "event_ts", "source"]]
+    if events.empty:
+        st.error("No valid activity after account creation was found.")
+        return
+    events = events.sort_values(["user_id", "event_ts", "source"]).reset_index(drop=True)
+
     first_actions = (
         events.groupby("user_id", as_index=False)
         .first()[["user_id", "event_ts", "source"]]
