@@ -174,11 +174,25 @@ def render_product_analysis_and_cost(
                 retention_df,
                 x="segment",
                 y="retention_rate",
-                title="Retention Rate by First Action",
+                title="<b>Retention Rate by First Action</b>",
                 labels={"segment": "First Action", "retention_rate": "Retention Rate (%)"},
                 text=retention_df["retention_rate"].map(lambda x: f"{x:.1f}%"),
+                color="segment",
+                color_discrete_map={
+                    "First Action = Query": "#4C78A8",
+                    "First Action = Research": "#F58518",
+                },
             )
-            fig_retention.update_layout(template="simple_white")
+            fig_retention.update_traces(textposition="outside", cliponaxis=False)
+            fig_retention.update_layout(
+                template="simple_white",
+                showlegend=False,
+                title_font=dict(size=20),
+                xaxis_title_font=dict(size=14),
+                yaxis_title_font=dict(size=14),
+                font=dict(size=13),
+                margin=dict(t=60, b=40, l=30, r=30),
+            )
             st.plotly_chart(fig_retention, use_container_width=True)
 
     with col2:
@@ -203,14 +217,24 @@ def render_product_analysis_and_cost(
                     latency_points,
                     x="model",
                     y="response_time_seconds",
-                    title="Response Time Distribution by Model (Mini vs Pro)",
+                    title="<b>Response Time Distribution by Model (Mini vs Pro)</b>",
                     labels={
                         "response_time_seconds": "Response Time (seconds)",
                         "model": "Model",
                     },
                     points="outliers",
+                    color="model",
+                    color_discrete_map={"mini": "#72B7B2", "pro": "#E45756"},
                 )
-                fig_latency.update_layout(template="simple_white")
+                fig_latency.update_layout(
+                    template="simple_white",
+                    title_font=dict(size=20),
+                    xaxis_title_font=dict(size=14),
+                    yaxis_title_font=dict(size=14),
+                    font=dict(size=13),
+                    legend_title_text="",
+                    margin=dict(t=60, b=40, l=30, r=30),
+                )
                 st.plotly_chart(fig_latency, use_container_width=True)
 
     # Pareto: concentration of research traffic.
@@ -245,7 +269,7 @@ def render_product_analysis_and_cost(
         pareto,
         x="cum_users_pct",
         y="cum_requests_pct",
-        title="Research API Traffic Concentration (Pareto Curve)",
+        title="<b>Research API Traffic Concentration (Pareto Curve)</b>",
         labels={
             "cum_users_pct": "Cumulative % of Users",
             "cum_requests_pct": "Cumulative % of Total Requests",
@@ -256,7 +280,15 @@ def render_product_analysis_and_cost(
     )
     fig_pareto.add_vline(x=5.0, line_dash="dash", line_color="gray")
     fig_pareto.add_hline(y=y_at_5, line_dash="dash", line_color="gray")
-    fig_pareto.update_layout(template="simple_white")
+    fig_pareto.update_traces(line=dict(color="#4C78A8", width=3))
+    fig_pareto.update_layout(
+        template="simple_white",
+        title_font=dict(size=20),
+        xaxis_title_font=dict(size=14),
+        yaxis_title_font=dict(size=14),
+        font=dict(size=13),
+        margin=dict(t=60, b=40, l=30, r=30),
+    )
     st.plotly_chart(fig_pareto, use_container_width=True)
 
 
