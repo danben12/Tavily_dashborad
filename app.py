@@ -298,8 +298,11 @@ def render_product_analysis_and_cost(
     )
     st.plotly_chart(fig_pareto, use_container_width=True)
 
+    st.markdown("---")
+    render_q2_free_tier_economics(users, research_requests)
 
-def render_infrastructure_and_cost_analysis(
+
+def render_q2_free_tier_economics(
     users: pd.DataFrame, research_requests: pd.DataFrame
 ) -> None:
     st.header("Q2: Free Tier Unit Economics & Infrastructure Costs")
@@ -439,6 +442,11 @@ def render_infrastructure_and_cost_analysis(
     st.plotly_chart(fig_stacked, use_container_width=True)
 
 
+def render_infrastructure_and_cost_analysis() -> None:
+    st.header("Infrastructure & Cost Analysis")
+    st.write("Content placeholder")
+
+
 def main() -> None:
     st.set_page_config(
         page_title="Tavily Dashboard",
@@ -462,7 +470,7 @@ def main() -> None:
     if page == "Product Analysis":
         render_product_analysis_and_cost(users, hourly_usage, research_requests)
     else:
-        render_infrastructure_and_cost_analysis(users, research_requests)
+        render_infrastructure_and_cost_analysis()
 
 
 if __name__ == "__main__":
