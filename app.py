@@ -222,7 +222,7 @@ def render_product_analysis_and_cost(
                         "response_time_seconds": "Response Time (seconds)",
                         "model": "Model",
                     },
-                    points="outliers",
+                    points=False,
                     color="model",
                     color_discrete_map={"mini": "#72B7B2", "pro": "#E45756"},
                 )
