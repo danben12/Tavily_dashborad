@@ -137,26 +137,25 @@ def render_product_analysis_and_cost(
         else 0.0
     )
     if research_first_count == 0:
-        churn_pct = 0.0
+        not_retained_pct = 0.0
     else:
         retention_pct = 100.0 * lifecycle.loc[research_first, "retained_30d"].mean()
-        churn_pct = 100.0 - retention_pct
+        not_retained_pct = 100.0 - retention_pct
 
     st.metric(
         "Research API Acquisition (New Users)",
         f"{acquisition_pct:.1f}%",
-        delta=f"-{churn_pct:.1f}% churn (Research-first users)",
-        delta_color="inverse",
         help=(
             "Acquisition = users with first hourly request_type = research divided by active users "
             "created on/after 2025-11-01 (active = at least one valid hourly event after signup). "
-            "Churn = 100% - retention for research-first users, "
+            "Users not retained = 100% - retention for research-first users, "
             "where retention means last hourly activity is at least 30 days after first hourly activity."
         ),
     )
     st.caption(
         f"Joined users since Nov 1: {joined_users_count:,} | Active joined users: "
-        f"{active_joined_users_count:,} | Research-first users: {research_first_count:,}"
+        f"{active_joined_users_count:,} | Research-first users: {research_first_count:,} | "
+        f"Research-first users not retained: {not_retained_pct:.1f}%"
     )
 
     col1, col2 = st.columns(2)
