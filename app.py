@@ -495,13 +495,20 @@ def _prepare_finops_data(
 
     infra["infra_total_cost"] = infra[infra_cols].sum(axis=1)
     infra["ai_total_cost"] = infra[model_cols].sum(axis=1)
+    infra["total_hourly_cost"] = infra["infra_total_cost"] + infra["ai_total_cost"]
     total_hardware_cost = float(infra["infra_total_cost"].sum())
     total_ai_cost = float(infra["ai_total_cost"].sum())
 
     infra["day"] = infra["hour"].dt.floor("d")
     infra["day_of_week"] = infra["hour"].dt.day_name()
     infra["hour_of_day"] = infra["hour"].dt.hour
-    infra_daily = infra.groupby("day", as_index=False)["infra_total_cost"].sum()
+    infra_daily = (
+        infra.groupby("day", as_index=False)
+        .agg(
+            infra_total_cost=("infra_total_cost", "sum"),
+            total_daily_cost=("total_hourly_cost", "sum"),
+        )
+    )
     heatmap_data = (
         infra.groupby(["day_of_week", "hour_of_day"], as_index=False)["infra_total_cost"]
         .mean()
@@ -528,6 +535,9 @@ def _prepare_finops_data(
     daily_agg["infra_total_cost"] = pd.to_numeric(
         daily_agg["infra_total_cost"], errors="coerce"
     ).fillna(0.0)
+    daily_agg["total_daily_cost"] = pd.to_numeric(
+        daily_agg["total_daily_cost"], errors="coerce"
+    ).fillna(0.0)
     daily_agg["total_requests"] = pd.to_numeric(
         daily_agg["total_requests"], errors="coerce"
     ).fillna(0.0)
@@ -538,14 +548,16 @@ def _prepare_finops_data(
 
     daily_agg["month"] = daily_agg["day"].dt.tz_convert(None).dt.to_period("M").dt.to_timestamp()
     monthly_agg = (
-        daily_agg.groupby("month", as_index=False)[["total_requests", "infra_total_cost"]]
+        daily_agg.groupby("month", as_index=False)[
+            ["total_requests", "infra_total_cost", "total_daily_cost"]
+        ]
         .sum()
         .sort_values("month")
     )
     monthly_agg["month_label"] = monthly_agg["month"].dt.strftime("%Y-%m")
 
     dead_days = daily_agg[daily_agg["total_requests"].eq(0)].copy()
-    wasted_zero_traffic_cost = float(dead_days["infra_total_cost"].sum())
+    wasted_zero_traffic_cost = float(dead_days["total_daily_cost"].sum())
     dead_days_count = int(len(dead_days))
 
     metrics = {
@@ -898,8 +910,8 @@ def render_infrastructure_and_cost_analysis(
         growth_daily["requests_ma7"] = (
             growth_daily["total_requests"].rolling(window=7, min_periods=1).mean()
         )
-        growth_daily["infra_cost_ma7"] = (
-            growth_daily["infra_total_cost"].rolling(window=7, min_periods=1).mean()
+        growth_daily["total_cost_ma7"] = (
+            growth_daily["total_daily_cost"].rolling(window=7, min_periods=1).mean()
         )
         fig_growth = make_subplots(specs=[[{"secondary_y": True}]])
         fig_growth.add_trace(
@@ -916,17 +928,17 @@ def render_infrastructure_and_cost_analysis(
         fig_growth.add_trace(
             go.Scatter(
                 x=growth_daily["day"],
-                y=growth_daily["infra_cost_ma7"],
-                name="Infrastructure Cost (7D MA)",
+                y=growth_daily["total_cost_ma7"],
+                name="Total Cost (7D MA)",
                 mode="lines+markers",
                 line=dict(color="#E45756", width=3),
-                hovertemplate="Day: %{x}<br>Infrastructure Cost (7D MA): $%{y:,.2f}<extra></extra>",
+                hovertemplate="Day: %{x}<br>Total Cost (7D MA): $%{y:,.2f}<extra></extra>",
             ),
             secondary_y=True,
         )
         fig_growth.update_layout(
             template="simple_white",
-            title="<b>The Growth Paradox: Requests vs Infrastructure Cost Over Time</b>",
+            title="<b>The Growth Paradox: Requests vs Total Cost Over Time</b>",
             title_font=dict(size=20),
             font=dict(size=13),
             legend_title_text="",
@@ -935,7 +947,7 @@ def render_infrastructure_and_cost_analysis(
         fig_growth.update_xaxes(title_text="Time")
         fig_growth.update_yaxes(title_text="Total Requests", secondary_y=False)
         fig_growth.update_yaxes(
-            title_text="Total Infrastructure Cost ($)",
+            title_text="Total Daily Cost ($) — Infra + Model",
             tickprefix="$",
             secondary_y=True,
         )
