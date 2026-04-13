@@ -849,26 +849,33 @@ def render_infrastructure_and_cost_analysis(
         st.plotly_chart(fig_donut, use_container_width=True)
 
     with col2:
+        growth_daily = daily_agg.sort_values("day").copy()
+        growth_daily["requests_ma7"] = (
+            growth_daily["total_requests"].rolling(window=7, min_periods=1).mean()
+        )
+        growth_daily["infra_cost_ma7"] = (
+            growth_daily["infra_total_cost"].rolling(window=7, min_periods=1).mean()
+        )
         fig_growth = make_subplots(specs=[[{"secondary_y": True}]])
         fig_growth.add_trace(
             go.Scatter(
-                x=daily_agg["day"],
-                y=daily_agg["total_requests"],
-                name="Total Requests",
+                x=growth_daily["day"],
+                y=growth_daily["requests_ma7"],
+                name="Total Requests (7D MA)",
                 mode="lines+markers",
                 line=dict(color="#4C78A8", width=3),
-                hovertemplate="Day: %{x}<br>Requests: %{y:,.0f}<extra></extra>",
+                hovertemplate="Day: %{x}<br>Requests (7D MA): %{y:,.0f}<extra></extra>",
             ),
             secondary_y=False,
         )
         fig_growth.add_trace(
             go.Scatter(
-                x=daily_agg["day"],
-                y=daily_agg["infra_total_cost"],
-                name="Infrastructure Cost",
+                x=growth_daily["day"],
+                y=growth_daily["infra_cost_ma7"],
+                name="Infrastructure Cost (7D MA)",
                 mode="lines+markers",
                 line=dict(color="#E45756", width=3),
-                hovertemplate="Day: %{x}<br>Infrastructure Cost: $%{y:,.2f}<extra></extra>",
+                hovertemplate="Day: %{x}<br>Infrastructure Cost (7D MA): $%{y:,.2f}<extra></extra>",
             ),
             secondary_y=True,
         )
