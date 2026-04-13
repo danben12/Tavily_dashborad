@@ -1,7 +1,6 @@
 import zipfile
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -904,33 +903,31 @@ def render_infrastructure_and_cost_analysis(
         {True: "Zero-Traffic Day", False: "Active Day"}
     )
     scatter_df = daily_agg.copy()
-    scatter_df["requests_plus1"] = scatter_df["total_requests"] + 1.0
-    scatter_df["requests_raw"] = scatter_df["total_requests"]
     fig_scatter = px.scatter(
         scatter_df,
-        x="requests_plus1",
+        x="total_requests",
         y="infra_total_cost",
         color="traffic_type",
-        custom_data=["traffic_type", "requests_raw"],
+        custom_data=["traffic_type"],
         title="<b>The Empty Restaurant: Daily Infrastructure Inefficiency</b>",
         labels={
-            "requests_plus1": "Total Requests in Day (+1, log scale)",
+            "total_requests": "Total Requests in Day",
             "infra_total_cost": "Infrastructure Cost in Day ($)",
             "traffic_type": "Day Type",
         },
         color_discrete_map={"Zero-Traffic Day": "#E45756", "Active Day": "#4C78A8"},
     )
-    reg_df = scatter_df.dropna(subset=["requests_plus1", "infra_total_cost"]).copy()
+    reg_df = scatter_df.dropna(subset=["total_requests", "infra_total_cost"]).copy()
     if len(reg_df) >= 2:
-        x_log = np.log10(reg_df["requests_plus1"].to_numpy())
+        x_val = reg_df["total_requests"].to_numpy()
         y_val = reg_df["infra_total_cost"].to_numpy()
-        slope, intercept = np.polyfit(x_log, y_val, 1)
+        slope, intercept = np.polyfit(x_val, y_val, 1)
         x_line = np.linspace(
-            reg_df["requests_plus1"].min(),
-            reg_df["requests_plus1"].max(),
+            reg_df["total_requests"].min(),
+            reg_df["total_requests"].max(),
             200,
         )
-        y_line = slope * np.log10(x_line) + intercept
+        y_line = slope * x_line + intercept
         fig_scatter.add_trace(
             go.Scatter(
                 x=x_line,
@@ -941,10 +938,10 @@ def render_infrastructure_and_cost_analysis(
                 hovertemplate="Regression<extra></extra>",
             )
         )
-    fig_scatter.add_vline(x=1, line_dash="dash", line_color="gray")
+    fig_scatter.add_vline(x=0, line_dash="dash", line_color="gray")
     fig_scatter.update_traces(
         hovertemplate=(
-            "Requests: %{customdata[1]:,.0f}<br>"
+            "Requests: %{x:,.0f}<br>"
             "Infrastructure Cost: $%{y:,.2f}<br>"
             "Type: %{customdata[0]}<extra></extra>"
         )
@@ -957,7 +954,6 @@ def render_infrastructure_and_cost_analysis(
         font=dict(size=13),
         legend_title_text="",
     )
-    fig_scatter.update_xaxes(type="log")
     fig_scatter.update_yaxes(tickprefix="$")
     st.plotly_chart(fig_scatter, use_container_width=True)
 
