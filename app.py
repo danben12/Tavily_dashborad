@@ -10,6 +10,15 @@ from plotly.subplots import make_subplots
 MODEL_COLORS = {"mini": "#72B7B2", "pro": "#E45756"}
 MODEL_COLORS_UPPER = {"MINI": "#72B7B2", "PRO": "#E45756"}
 USER_COLORS = {"Free Users": "#F58518", "Paid Users": "#4C78A8"}
+COOLWARM_SCALE = [
+    [0.0, "#3B4CC0"],
+    [0.2, "#6F92F3"],
+    [0.4, "#AFC7FD"],
+    [0.5, "#DDDCDC"],
+    [0.6, "#F7B89C"],
+    [0.8, "#E7745B"],
+    [1.0, "#B40426"],
+]
 
 
 @st.cache_data
@@ -935,7 +944,7 @@ def render_infrastructure_and_cost_analysis(
         heatmap_pivot,
         labels=dict(x="Hour of Day", y="Day of Week", color="Mean Infra Cost ($)"),
         title="<b>Mean Infrastructure Cost by Day of Week and Hour</b>",
-        color_continuous_scale="coolwarm",
+        color_continuous_scale=COOLWARM_SCALE,
         aspect="auto",
     )
     fig_heatmap.update_traces(
