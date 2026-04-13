@@ -57,62 +57,64 @@ def _lowercase_columns(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def _build_events(hourly_usage: pd.DataFrame, research_requests: pd.DataFrame) -> pd.DataFrame:
-    h = _lowercase_columns(hourly_usage)
-    r = _lowercase_columns(research_requests)
+def _build_hourly_lifecycle(users: pd.DataFrame, hourly_usage: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    users_l = _lowercase_columns(users)
+    hourly_l = _lowercase_columns(hourly_usage)
+    required_users = {"user_id", "created_at"}
+    required_hourly = {"user_id", "hour", "request_type"}
+    if not required_users.issubset(users_l.columns) or not required_hourly.issubset(hourly_l.columns):
+        return pd.DataFrame(), 0
 
-    required_h = {"user_id", "hour"}
-    required_r = {"user_id", "timestamp"}
-    if not required_h.issubset(h.columns) or not required_r.issubset(r.columns):
-        return pd.DataFrame(columns=["user_id", "event_ts", "source"])
+    users_l = users_l[["user_id", "created_at"]].copy()
+    users_l["created_at"] = pd.to_datetime(users_l["created_at"], errors="coerce", utc=True)
+    users_l["user_id"] = pd.to_numeric(users_l["user_id"], errors="coerce")
+    users_l = users_l.dropna(subset=["user_id", "created_at"]).copy()
+    users_l["user_id"] = users_l["user_id"].astype(int)
 
-    h_events = h[["user_id", "hour"]].copy()
-    h_events["event_ts"] = pd.to_datetime(h_events["hour"], errors="coerce", utc=True)
-    h_events["source"] = "query"
-
-    r_events = r[["user_id", "timestamp"]].copy()
-    r_events["event_ts"] = pd.to_datetime(r_events["timestamp"], errors="coerce", utc=True)
-    r_events["source"] = "research"
-
-    events = pd.concat(
-        [
-            h_events[["user_id", "event_ts", "source"]],
-            r_events[["user_id", "event_ts", "source"]],
-        ],
-        ignore_index=True,
+    nov_start = pd.Timestamp("2025-11-01", tz="UTC")
+    new_users = users_l.loc[users_l["created_at"] >= nov_start, ["user_id", "created_at"]].drop_duplicates(
+        subset=["user_id"]
     )
-    events["user_id"] = pd.to_numeric(events["user_id"], errors="coerce")
-    events = events.dropna(subset=["user_id", "event_ts"]).copy()
-    events["user_id"] = events["user_id"].astype(int)
-    return events.sort_values(["user_id", "event_ts", "source"]).reset_index(drop=True)
 
+    hourly_l = hourly_l[["user_id", "hour", "request_type"]].copy()
+    hourly_l["hour"] = pd.to_datetime(hourly_l["hour"], errors="coerce", utc=True)
+    hourly_l["user_id"] = pd.to_numeric(hourly_l["user_id"], errors="coerce")
+    hourly_l = hourly_l.dropna(subset=["user_id", "hour"]).copy()
+    hourly_l["user_id"] = hourly_l["user_id"].astype(int)
 
-def _retention_by_segment(events: pd.DataFrame) -> pd.DataFrame:
-    if events.empty:
-        return pd.DataFrame(columns=["segment", "retention_rate"])
+    valid_events = new_users.merge(hourly_l, on="user_id", how="inner")
+    valid_events = valid_events.loc[valid_events["hour"] >= valid_events["created_at"]].copy()
+    valid_events = valid_events.sort_values(["user_id", "hour"]).reset_index(drop=True)
+    if valid_events.empty:
+        return pd.DataFrame(), int(new_users["user_id"].nunique())
 
     first_actions = (
-        events.groupby("user_id", as_index=False)
-        .first()[["user_id", "event_ts", "source"]]
-        .rename(columns={"event_ts": "first_event_ts", "source": "first_source"})
+        valid_events.groupby("user_id", as_index=False)
+        .first()[["user_id", "hour", "request_type"]]
+        .rename(columns={"hour": "first_event_ts", "request_type": "first_source"})
     )
-    last_activity = (
-        events.groupby("user_id", as_index=False)["event_ts"]
-        .max()
-        .rename(columns={"event_ts": "last_event_ts"})
+    last_actions = (
+        valid_events.groupby("user_id", as_index=False)
+        .last()[["user_id", "hour"]]
+        .rename(columns={"hour": "last_event_ts"})
     )
+    lifecycle = first_actions.merge(last_actions, on="user_id", how="inner")
+    lifecycle["first_source"] = lifecycle["first_source"].astype(str).str.strip().str.lower()
+    lifecycle["retained_30d"] = (
+        (lifecycle["last_event_ts"] - lifecycle["first_event_ts"]).dt.days >= 30
+    )
+    return lifecycle, int(new_users["user_id"].nunique())
 
-    user_lifecycle = first_actions.merge(last_activity, on="user_id", how="inner")
-    user_lifecycle["retained_30d"] = (
-        user_lifecycle["last_event_ts"]
-        >= user_lifecycle["first_event_ts"] + pd.Timedelta(days=30)
-    )
-    user_lifecycle["segment"] = user_lifecycle["first_source"].map(
+
+def _retention_by_segment(lifecycle: pd.DataFrame) -> pd.DataFrame:
+    if lifecycle.empty:
+        return pd.DataFrame(columns=["segment", "retention_rate"])
+    out = lifecycle.copy()
+    out["segment"] = out["first_source"].map(
         {"query": "First Action = Query", "research": "First Action = Research"}
     )
-
     out = (
-        user_lifecycle.groupby("segment", as_index=False)["retained_30d"]
+        out.groupby("segment", as_index=False)["retained_30d"]
         .mean()
         .rename(columns={"retained_30d": "retention_rate"})
     )
@@ -122,72 +124,21 @@ def _retention_by_segment(events: pd.DataFrame) -> pd.DataFrame:
 def render_product_analysis_and_cost(
     users: pd.DataFrame, hourly_usage: pd.DataFrame, research_requests: pd.DataFrame
 ) -> None:
-    users_l = _lowercase_columns(users)
-    if not {"user_id", "created_at"}.issubset(users_l.columns):
-        st.error("Missing required columns in users dataset (`user_id`, `created_at`).")
+    lifecycle, joined_users_count = _build_hourly_lifecycle(users, hourly_usage)
+    if lifecycle.empty:
+        st.error("Could not build lifecycle table from users and hourly usage.")
         return
-
-    events = _build_events(hourly_usage, research_requests)
-    if events.empty:
-        st.error("Could not build events from usage datasets.")
-        return
-
-    users_l["created_at"] = pd.to_datetime(users_l["created_at"], errors="coerce", utc=True)
-    users_l["user_id"] = pd.to_numeric(users_l["user_id"], errors="coerce")
-    users_l = users_l.dropna(subset=["user_id", "created_at"]).copy()
-    users_l["user_id"] = users_l["user_id"].astype(int)
-
-    # Only consider activity on/after account creation for lifecycle metrics.
-    events = events.merge(users_l[["user_id", "created_at"]], on="user_id", how="inner")
-    events = events.loc[events["event_ts"] >= events["created_at"], ["user_id", "event_ts", "source"]]
-    if events.empty:
-        st.error("No valid activity after account creation was found.")
-        return
-    events = events.sort_values(["user_id", "event_ts", "source"]).reset_index(drop=True)
-
-    first_actions = (
-        events.groupby("user_id", as_index=False)
-        .first()[["user_id", "event_ts", "source"]]
-        .rename(columns={"event_ts": "first_event_ts", "source": "first_source"})
+    research_first = lifecycle["first_source"].eq("research")
+    research_first_count = int(research_first.sum())
+    active_joined_users_count = int(lifecycle["user_id"].nunique())
+    acquisition_pct = (
+        100.0 * research_first_count / joined_users_count if joined_users_count > 0 else 0.0
     )
-    last_activity = (
-        events.groupby("user_id", as_index=False)["event_ts"]
-        .max()
-        .rename(columns={"event_ts": "last_event_ts"})
-    )
-    lifecycle = first_actions.merge(last_activity, on="user_id", how="inner")
-    lifecycle["retained_30d"] = (
-        lifecycle["last_event_ts"] >= lifecycle["first_event_ts"] + pd.Timedelta(days=30)
-    )
-
-    # KPI 1: Acquisition + churn for users first acquired by Research API.
-    rr_for_launch = _lowercase_columns(research_requests)
-    if "timestamp" not in rr_for_launch.columns:
-        st.error("Missing `timestamp` in research requests dataset.")
-        return
-    rr_for_launch["timestamp"] = pd.to_datetime(
-        rr_for_launch["timestamp"], errors="coerce", utc=True
-    )
-    launch_ts = rr_for_launch["timestamp"].dropna().min()
-    if pd.isna(launch_ts):
-        st.error("Could not determine Research API launch timestamp from research data.")
-        return
-
-    new_users = users_l.loc[users_l["created_at"] > launch_ts, ["user_id"]].drop_duplicates()
-    new_lifecycle = new_users.merge(lifecycle, on="user_id", how="inner")
-
-    if len(new_lifecycle) == 0:
-        acquisition_pct = 0.0
+    if research_first_count == 0:
         churn_pct = 0.0
     else:
-        research_first = new_lifecycle["first_source"].eq("research")
-        acquisition_pct = 100.0 * research_first.mean()
-        research_first_cohort = new_lifecycle.loc[research_first]
-        if len(research_first_cohort) == 0:
-            churn_pct = 0.0
-        else:
-            retention_pct = 100.0 * research_first_cohort["retained_30d"].mean()
-            churn_pct = 100.0 - retention_pct
+        retention_pct = 100.0 * lifecycle.loc[research_first, "retained_30d"].mean()
+        churn_pct = 100.0 - retention_pct
 
     st.metric(
         "Research API Acquisition (New Users)",
@@ -195,11 +146,14 @@ def render_product_analysis_and_cost(
         delta=f"-{churn_pct:.1f}% churn (Research-first users)",
         delta_color="inverse",
         help=(
-            "Acquisition = % of users created after Research API launch whose very first activity "
-            "across hourly_usage + research_requests is in research_requests. "
-            "Churn = 100% - retention, where retention means any activity at least 30 days after "
-            "a user's first valid activity."
+            "Acquisition = users with first hourly request_type = research divided by all users "
+            "created on/after 2025-11-01. Churn = 100% - retention for research-first users, "
+            "where retention means last hourly activity is at least 30 days after first hourly activity."
         ),
+    )
+    st.caption(
+        f"Joined users since Nov 1: {joined_users_count:,} | Active joined users: "
+        f"{active_joined_users_count:,} | Research-first users: {research_first_count:,}"
     )
 
     col1, col2 = st.columns(2)
@@ -209,7 +163,7 @@ def render_product_analysis_and_cost(
             "Calculation: users are split by first-ever action (Query vs Research), then "
             "retention = share with any activity 30+ days after first activity."
         )
-        retention_df = _retention_by_segment(events)
+        retention_df = _retention_by_segment(lifecycle)
         if retention_df.empty:
             st.warning("Not enough data to calculate retention by first action.")
         else:
