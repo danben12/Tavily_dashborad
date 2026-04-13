@@ -153,19 +153,9 @@ def render_product_analysis_and_cost(
             "where retention means last hourly activity is at least 30 days after first hourly activity."
         ),
     )
-    st.caption(
-        f"Joined users since Nov 1: {joined_users_count:,} | Active joined users: "
-        f"{active_joined_users_count:,} | Research-first users: {research_first_count:,} | "
-        f"Research-first users not retained: {not_retained_pct:.1f}%"
-    )
-
     col1, col2 = st.columns(2)
 
     with col1:
-        st.caption(
-            "Calculation: users are split by first-ever action (Query vs Research), then "
-            "retention = share with any activity 30+ days after first activity."
-        )
         retention_df = _retention_by_segment(lifecycle)
         if retention_df.empty:
             st.warning("Not enough data to calculate retention by first action.")
@@ -197,9 +187,6 @@ def render_product_analysis_and_cost(
             st.plotly_chart(fig_retention, use_container_width=True)
 
     with col2:
-        st.caption(
-            "Calculation: use request-level `response_time_seconds` for mini and pro and show distribution with a box plot."
-        )
         rr = _lowercase_columns(research_requests)
         if not {"model", "response_time_seconds"}.issubset(rr.columns):
             st.warning("Missing `model` or `response_time_seconds` in research data.")
