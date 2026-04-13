@@ -1,7 +1,6 @@
 import zipfile
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -449,7 +448,7 @@ def _prepare_finops_data(
     infrastructure_costs: pd.DataFrame,
     hourly_usage: pd.DataFrame,
     research_requests: pd.DataFrame,
-) -> tuple[dict, pd.DataFrame, pd.DataFrame] | None:
+) -> tuple[dict, pd.DataFrame, pd.DataFrame, pd.DataFrame] | None:
     infra = _lowercase_columns(infrastructure_costs)
     hourly = _lowercase_columns(hourly_usage)
     rr = _lowercase_columns(research_requests)
@@ -473,7 +472,14 @@ def _prepare_finops_data(
     total_ai_cost = float(infra["ai_total_cost"].sum())
 
     infra["day"] = infra["hour"].dt.floor("d")
+    infra["day_of_week"] = infra["hour"].dt.day_name()
+    infra["hour_of_day"] = infra["hour"].dt.hour
     infra_daily = infra.groupby("day", as_index=False)["infra_total_cost"].sum()
+    heatmap_data = (
+        infra.groupby(["day_of_week", "hour_of_day"], as_index=False)["infra_total_cost"]
+        .mean()
+        .rename(columns={"infra_total_cost": "mean_infra_cost"})
+    )
 
     if {"hour", "request_count"}.issubset(hourly.columns):
         hourly_r = hourly.copy()
@@ -521,7 +527,7 @@ def _prepare_finops_data(
         "wasted_zero_traffic_cost": wasted_zero_traffic_cost,
         "dead_days_count": dead_days_count,
     }
-    return metrics, daily_agg, monthly_agg
+    return metrics, daily_agg, monthly_agg, heatmap_data
 
 
 def render_product_analysis_and_cost(
@@ -804,7 +810,7 @@ def render_infrastructure_and_cost_analysis(
     if prepared is None:
         st.error("Missing required fields for Infrastructure & FinOps analysis.")
         return
-    finops_metrics, daily_agg, monthly_agg = prepared
+    finops_metrics, daily_agg, monthly_agg, heatmap_data = prepared
 
     k1, k2, k3 = st.columns(3)
     with k1:
@@ -900,63 +906,53 @@ def render_infrastructure_and_cost_analysis(
         )
         st.plotly_chart(fig_growth, use_container_width=True)
 
-    daily_agg["traffic_type"] = daily_agg["total_requests"].eq(0).map(
-        {True: "Zero-Traffic Day", False: "Active Day"}
+    day_order = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
+    heatmap_data["day_of_week"] = pd.Categorical(
+        heatmap_data["day_of_week"], categories=day_order, ordered=True
     )
-    scatter_df = daily_agg.copy()
-    fig_scatter = px.scatter(
-        scatter_df,
-        x="total_requests",
-        y="infra_total_cost",
-        color="traffic_type",
-        custom_data=["traffic_type"],
-        title="<b>The Empty Restaurant: Daily Infrastructure Inefficiency</b>",
-        labels={
-            "total_requests": "Total Requests in Day",
-            "infra_total_cost": "Infrastructure Cost in Day ($)",
-            "traffic_type": "Day Type",
-        },
-        color_discrete_map={"Zero-Traffic Day": "#E45756", "Active Day": "#4C78A8"},
+    heatmap_data["hour_of_day"] = pd.to_numeric(
+        heatmap_data["hour_of_day"], errors="coerce"
+    ).astype("Int64")
+    heatmap_pivot = (
+        heatmap_data.pivot_table(
+            index="day_of_week",
+            columns="hour_of_day",
+            values="mean_infra_cost",
+            aggfunc="mean",
+        )
+        .reindex(day_order)
+        .reindex(columns=list(range(24)))
     )
-    reg_df = scatter_df.dropna(subset=["total_requests", "infra_total_cost"]).copy()
-    if len(reg_df) >= 2:
-        x_val = reg_df["total_requests"].to_numpy()
-        y_val = reg_df["infra_total_cost"].to_numpy()
-        slope, intercept = np.polyfit(x_val, y_val, 1)
-        x_line = np.linspace(
-            reg_df["total_requests"].min(),
-            reg_df["total_requests"].max(),
-            200,
-        )
-        y_line = slope * x_line + intercept
-        fig_scatter.add_trace(
-            go.Scatter(
-                x=x_line,
-                y=y_line,
-                mode="lines",
-                name="Linear Regression",
-                line=dict(color="#2CA02C", width=3),
-                hovertemplate="Regression<extra></extra>",
-            )
-        )
-    fig_scatter.add_vline(x=0, line_dash="dash", line_color="gray")
-    fig_scatter.update_traces(
+    fig_heatmap = px.imshow(
+        heatmap_pivot,
+        labels=dict(x="Hour of Day", y="Day of Week", color="Mean Infra Cost ($)"),
+        title="<b>Mean Infrastructure Cost by Day of Week and Hour</b>",
+        color_continuous_scale="Blues",
+        aspect="auto",
+    )
+    fig_heatmap.update_traces(
         hovertemplate=(
-            "Requests: %{x:,.0f}<br>"
-            "Infrastructure Cost: $%{y:,.2f}<br>"
-            "Type: %{customdata[0]}<extra></extra>"
+            "Day: %{y}<br>"
+            "Hour: %{x}:00<br>"
+            "Mean Infra Cost: $%{z:,.2f}<extra></extra>"
         )
     )
-    fig_scatter.update_layout(
+    fig_heatmap.update_layout(
         template="simple_white",
         title_font=dict(size=20),
         xaxis_title_font=dict(size=14),
         yaxis_title_font=dict(size=14),
         font=dict(size=13),
-        legend_title_text="",
     )
-    fig_scatter.update_yaxes(tickprefix="$")
-    st.plotly_chart(fig_scatter, use_container_width=True)
+    st.plotly_chart(fig_heatmap, use_container_width=True)
 
 
 def main() -> None:
