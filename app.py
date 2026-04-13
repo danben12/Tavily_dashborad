@@ -498,6 +498,9 @@ def _prepare_finops_data(
         daily_agg["total_requests"], errors="coerce"
     ).fillna(0.0)
     daily_agg = daily_agg.sort_values("day").reset_index(drop=True)
+    if not daily_agg.empty:
+        last_day = daily_agg["day"].max()
+        daily_agg = daily_agg[daily_agg["day"] < last_day].copy()
 
     daily_agg["month"] = daily_agg["day"].dt.tz_convert(None).dt.to_period("M").dt.to_timestamp()
     monthly_agg = (
