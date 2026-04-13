@@ -19,6 +19,13 @@ COOLWARM_SCALE = [
     [0.8, "#E7745B"],
     [1.0, "#B40426"],
 ]
+FIRST_REQUEST_TYPE_COLORS = {
+    "query": "#4C78A8",
+    "research": "#F58518",
+    "extract": "#54A24B",
+    "crawl": "#E45756",
+    "map": "#B279A2",
+}
 
 
 @st.cache_data
@@ -115,24 +122,35 @@ def _build_hourly_lifecycle(users: pd.DataFrame, hourly_usage: pd.DataFrame) -> 
     )
     lifecycle = first_actions.merge(last_actions, on="user_id", how="inner")
     lifecycle["first_source"] = lifecycle["first_source"].astype(str).str.strip().str.lower()
-    lifecycle["retained_30d"] = (
-        (lifecycle["last_event_ts"] - lifecycle["first_event_ts"]).dt.days >= 30
-    )
+    usage_row_counts = valid_events.groupby("user_id").size().reset_index(name="usage_row_count")
+    lifecycle = lifecycle.merge(usage_row_counts, on="user_id", how="left")
+    lifecycle["usage_row_count"] = lifecycle["usage_row_count"].fillna(0).astype(int)
+    lifecycle["single_row_only"] = lifecycle["usage_row_count"].eq(1)
     return lifecycle, int(new_users["user_id"].nunique())
 
 
-def _retention_by_segment(lifecycle: pd.DataFrame) -> pd.DataFrame:
+def _single_row_no_return_by_first_request(lifecycle: pd.DataFrame) -> pd.DataFrame:
+    """Share of users with exactly one hourly_usage row after signup, by first request_type."""
     if lifecycle.empty:
-        return pd.DataFrame(columns=["segment", "retention_rate"])
-    out = lifecycle.copy()
-    out["segment"] = out["first_source"].map(
-        {"query": "First Action = Query", "research": "First Action = Research"}
-    )
+        return pd.DataFrame(
+            columns=[
+                "first_source",
+                "first_request_label",
+                "user_count",
+                "single_row_count",
+                "pct_single_row",
+            ]
+        )
+    tmp = lifecycle.assign(_single=lifecycle["single_row_only"].astype(bool))
     out = (
-        out.groupby("segment", as_index=False)["retained_30d"]
-        .mean()
-        .rename(columns={"retained_30d": "retention_rate"})
+        tmp.groupby("first_source", as_index=False)
+        .agg(user_count=("user_id", "count"), single_row_count=("_single", "sum"))
+        .sort_values("user_count", ascending=False)
+        .reset_index(drop=True)
     )
+    out["single_row_count"] = out["single_row_count"].astype(int)
+    out["pct_single_row"] = 100.0 * out["single_row_count"] / out["user_count"]
+    out["first_request_label"] = out["first_source"].astype(str).str.title()
     return out
 
 
@@ -576,10 +594,9 @@ def render_product_analysis_and_cost(
             "Research API Acquisition (New Users)",
             f"{acquisition_pct:.2f}%",
             help=(
-                "Acquisition = users with first hourly request_type = research divided by active users "
-                "created on/after 2025-11-01 (active = at least one valid hourly event after signup). "
-                "Users not retained = 100% - retention for research-first users, "
-                "where retention means last hourly activity is at least 30 days after first hourly activity."
+                "Acquisition = users whose first hourly_usage row after signup has request_type = research, "
+                "divided by active users created on/after 2025-11-01. "
+                "Active = at least one hourly_usage row with hour on/after account created_at."
             ),
         )
     with m2:
@@ -598,27 +615,35 @@ def render_product_analysis_and_cost(
     col1, col2 = st.columns(2)
 
     with col1:
-        retention_df = _retention_by_segment(lifecycle)
-        if retention_df.empty:
-            st.warning("Not enough data to calculate retention by first action.")
+        no_return_df = _single_row_no_return_by_first_request(lifecycle)
+        if no_return_df.empty:
+            st.warning("Not enough data for single-row usage by first request type.")
         else:
-            retention_df["retention_rate"] = retention_df["retention_rate"] * 100.0
+            label_order = no_return_df["first_request_label"].tolist()
             fig_retention = px.bar(
-                retention_df,
-                x="segment",
-                y="retention_rate",
-                title="<b>Retention Rate by First Action</b>",
-                labels={"segment": "First Action", "retention_rate": "Retention Rate (%)"},
-                text=retention_df["retention_rate"].map(lambda x: f"{x:.2f}%"),
-                color="segment",
-                color_discrete_map={
-                    "First Action = Query": "#4C78A8",
-                    "First Action = Research": "#F58518",
+                no_return_df,
+                x="first_request_label",
+                y="pct_single_row",
+                title="<b>No Further Logged Usage After First Action</b>",
+                labels={
+                    "first_request_label": "First request type",
+                    "pct_single_row": "Users with only 1 usage row (%)",
                 },
+                text=no_return_df["pct_single_row"].map(lambda x: f"{x:.2f}%"),
+                color="first_source",
+                color_discrete_map=FIRST_REQUEST_TYPE_COLORS,
+                category_orders={"first_request_label": label_order},
+                custom_data=["user_count", "single_row_count"],
             )
-            fig_retention.update_traces(textposition="outside", cliponaxis=False)
             fig_retention.update_traces(
-                hovertemplate="%{x}<br>Retention: %{y:.2f}%<extra></extra>"
+                textposition="outside",
+                cliponaxis=False,
+                hovertemplate=(
+                    "%{x}<br>"
+                    "Share with 1 row only: %{y:.2f}%<br>"
+                    "Users in segment: %{customdata[0]:,.0f}<br>"
+                    "Users with 1 row: %{customdata[1]:,.0f}<extra></extra>"
+                ),
             )
             fig_retention.update_layout(
                 template="simple_white",
@@ -628,6 +653,7 @@ def render_product_analysis_and_cost(
                 yaxis_title_font=dict(size=14),
                 font=dict(size=13),
                 margin=dict(t=60, b=40, l=30, r=30),
+                yaxis=dict(range=[0, max(100.0, float(no_return_df["pct_single_row"].max()) * 1.15)]),
             )
             st.plotly_chart(fig_retention, use_container_width=True)
 
