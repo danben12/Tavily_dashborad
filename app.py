@@ -224,7 +224,7 @@ def render_product_analysis_and_cost(
     with m1:
         st.metric(
             "Research API Acquisition (New Users)",
-            f"{acquisition_pct:.1f}%",
+            f"{acquisition_pct:.2f}%",
             help=(
                 "Acquisition = users with first hourly request_type = research divided by active users "
                 "created on/after 2025-11-01 (active = at least one valid hourly event after signup). "
@@ -251,7 +251,7 @@ def render_product_analysis_and_cost(
                 y="retention_rate",
                 title="<b>Retention Rate by First Action</b>",
                 labels={"segment": "First Action", "retention_rate": "Retention Rate (%)"},
-                text=retention_df["retention_rate"].map(lambda x: f"{x:.1f}%"),
+                text=retention_df["retention_rate"].map(lambda x: f"{x:.2f}%"),
                 color="segment",
                 color_discrete_map={
                     "First Action = Query": "#4C78A8",
@@ -407,7 +407,7 @@ def render_product_analysis_and_cost(
             labels={"model": "Model", "request_cost": "Average Request Cost ($)"},
             color="model",
             color_discrete_map={"mini": "#72B7B2", "pro": "#E45756"},
-            text=avg_cost["request_cost"].map(lambda x: f"${x:,.4f}"),
+            text=avg_cost["request_cost"].map(lambda x: f"${x:,.2f}"),
         )
         fig_avg_cost.update_traces(textposition="outside", cliponaxis=False)
         fig_avg_cost.update_layout(
