@@ -471,51 +471,53 @@ def _prepare_finops_data(
     total_hardware_cost = float(infra["infra_total_cost"].sum())
     total_ai_cost = float(infra["ai_total_cost"].sum())
 
-    infra_hourly = infra.groupby("hour", as_index=False)["infra_total_cost"].sum()
+    infra["day"] = infra["hour"].dt.floor("d")
+    infra_daily = infra.groupby("day", as_index=False)["infra_total_cost"].sum()
 
     if {"hour", "request_count"}.issubset(hourly.columns):
         hourly_r = hourly.copy()
         hourly_r["hour"] = pd.to_datetime(hourly_r["hour"], errors="coerce", utc=True)
         hourly_r["request_count"] = pd.to_numeric(hourly_r["request_count"], errors="coerce").fillna(0.0)
         hourly_r = hourly_r.dropna(subset=["hour"]).copy()
-        req_hourly = hourly_r.groupby("hour", as_index=False)["request_count"].sum()
-        req_hourly = req_hourly.rename(columns={"request_count": "total_requests"})
+        hourly_r["day"] = hourly_r["hour"].dt.floor("d")
+        req_daily = hourly_r.groupby("day", as_index=False)["request_count"].sum()
+        req_daily = req_daily.rename(columns={"request_count": "total_requests"})
     elif "timestamp" in rr.columns:
         rr["timestamp"] = pd.to_datetime(rr["timestamp"], errors="coerce", utc=True)
         rr = rr.dropna(subset=["timestamp"]).copy()
-        rr["hour"] = rr["timestamp"].dt.floor("h")
-        req_hourly = rr.groupby("hour", as_index=False).size().rename(columns={"size": "total_requests"})
+        rr["day"] = rr["timestamp"].dt.floor("d")
+        req_daily = rr.groupby("day", as_index=False).size().rename(columns={"size": "total_requests"})
     else:
         return None
 
-    hourly_agg = infra_hourly.merge(req_hourly, on="hour", how="outer")
-    hourly_agg["infra_total_cost"] = pd.to_numeric(
-        hourly_agg["infra_total_cost"], errors="coerce"
+    daily_agg = infra_daily.merge(req_daily, on="day", how="outer")
+    daily_agg["infra_total_cost"] = pd.to_numeric(
+        daily_agg["infra_total_cost"], errors="coerce"
     ).fillna(0.0)
-    hourly_agg["total_requests"] = pd.to_numeric(
-        hourly_agg["total_requests"], errors="coerce"
+    daily_agg["total_requests"] = pd.to_numeric(
+        daily_agg["total_requests"], errors="coerce"
     ).fillna(0.0)
-    hourly_agg = hourly_agg.sort_values("hour").reset_index(drop=True)
+    daily_agg = daily_agg.sort_values("day").reset_index(drop=True)
 
-    hourly_agg["month"] = hourly_agg["hour"].dt.tz_convert(None).dt.to_period("M").dt.to_timestamp()
+    daily_agg["month"] = daily_agg["day"].dt.tz_convert(None).dt.to_period("M").dt.to_timestamp()
     monthly_agg = (
-        hourly_agg.groupby("month", as_index=False)[["total_requests", "infra_total_cost"]]
+        daily_agg.groupby("month", as_index=False)[["total_requests", "infra_total_cost"]]
         .sum()
         .sort_values("month")
     )
     monthly_agg["month_label"] = monthly_agg["month"].dt.strftime("%Y-%m")
 
-    dead_hours = hourly_agg[hourly_agg["total_requests"].eq(0)].copy()
-    wasted_zero_traffic_cost = float(dead_hours["infra_total_cost"].sum())
-    dead_hours_count = int(len(dead_hours))
+    dead_days = daily_agg[daily_agg["total_requests"].eq(0)].copy()
+    wasted_zero_traffic_cost = float(dead_days["infra_total_cost"].sum())
+    dead_days_count = int(len(dead_days))
 
     metrics = {
         "total_hardware_cost": total_hardware_cost,
         "total_ai_cost": total_ai_cost,
         "wasted_zero_traffic_cost": wasted_zero_traffic_cost,
-        "dead_hours_count": dead_hours_count,
+        "dead_days_count": dead_days_count,
     }
-    return metrics, hourly_agg, monthly_agg
+    return metrics, daily_agg, monthly_agg
 
 
 def render_product_analysis_and_cost(
@@ -798,7 +800,7 @@ def render_infrastructure_and_cost_analysis(
     if prepared is None:
         st.error("Missing required fields for Infrastructure & FinOps analysis.")
         return
-    finops_metrics, hourly_agg, monthly_agg = prepared
+    finops_metrics, daily_agg, monthly_agg = prepared
 
     k1, k2, k3 = st.columns(3)
     with k1:
@@ -809,7 +811,7 @@ def render_infrastructure_and_cost_analysis(
         st.metric(
             "Wasted Zero-Traffic Cost",
             f"${finops_metrics['wasted_zero_traffic_cost']:,.2f}",
-            delta=f"{finops_metrics['dead_hours_count']:,} dead hours",
+            delta=f"{finops_metrics['dead_days_count']:,} dead days",
         )
 
     col1, col2 = st.columns(2)
@@ -850,23 +852,23 @@ def render_infrastructure_and_cost_analysis(
         fig_growth = make_subplots(specs=[[{"secondary_y": True}]])
         fig_growth.add_trace(
             go.Scatter(
-                x=hourly_agg["hour"],
-                y=hourly_agg["total_requests"],
+                x=daily_agg["day"],
+                y=daily_agg["total_requests"],
                 name="Total Requests",
                 mode="lines+markers",
                 line=dict(color="#4C78A8", width=3),
-                hovertemplate="Hour: %{x}<br>Requests: %{y:,.0f}<extra></extra>",
+                hovertemplate="Day: %{x}<br>Requests: %{y:,.0f}<extra></extra>",
             ),
             secondary_y=False,
         )
         fig_growth.add_trace(
             go.Scatter(
-                x=hourly_agg["hour"],
-                y=hourly_agg["infra_total_cost"],
+                x=daily_agg["day"],
+                y=daily_agg["infra_total_cost"],
                 name="Infrastructure Cost",
                 mode="lines+markers",
                 line=dict(color="#E45756", width=3),
-                hovertemplate="Hour: %{x}<br>Infrastructure Cost: $%{y:,.2f}<extra></extra>",
+                hovertemplate="Day: %{x}<br>Infrastructure Cost: $%{y:,.2f}<extra></extra>",
             ),
             secondary_y=True,
         )
@@ -887,22 +889,22 @@ def render_infrastructure_and_cost_analysis(
         )
         st.plotly_chart(fig_growth, use_container_width=True)
 
-    hourly_agg["traffic_type"] = hourly_agg["total_requests"].eq(0).map(
-        {True: "Zero-Traffic Hour", False: "Active Hour"}
+    daily_agg["traffic_type"] = daily_agg["total_requests"].eq(0).map(
+        {True: "Zero-Traffic Day", False: "Active Day"}
     )
     fig_scatter = px.scatter(
-        hourly_agg,
+        daily_agg,
         x="total_requests",
         y="infra_total_cost",
         color="traffic_type",
         custom_data=["traffic_type"],
-        title="<b>The Empty Restaurant: Hourly Infrastructure Inefficiency</b>",
+        title="<b>The Empty Restaurant: Daily Infrastructure Inefficiency</b>",
         labels={
-            "total_requests": "Total Requests in Hour",
-            "infra_total_cost": "Infrastructure Cost in Hour ($)",
-            "traffic_type": "Hour Type",
+            "total_requests": "Total Requests in Day",
+            "infra_total_cost": "Infrastructure Cost in Day ($)",
+            "traffic_type": "Day Type",
         },
-        color_discrete_map={"Zero-Traffic Hour": "#E45756", "Active Hour": "#4C78A8"},
+        color_discrete_map={"Zero-Traffic Day": "#E45756", "Active Day": "#4C78A8"},
     )
     fig_scatter.add_vline(x=0, line_dash="dash", line_color="gray")
     fig_scatter.update_traces(
