@@ -369,11 +369,11 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
             color="duration_group",
             color_discrete_sequence=["#4C78A8", "#E45756"],
             text=wait_effect["cancel_rate"].map(lambda v: f"{100.0 * v:.2f}%"),
+            custom_data=["request_count", "cancelled_count"],
         )
         fig_wait.update_traces(
             textposition="outside",
             cliponaxis=False,
-            customdata=wait_effect[["request_count", "cancelled_count"]].to_numpy(),
             hovertemplate=(
                 "Duration: %{x}<br>"
                 "Cancel Rate: %{y:.2%}<br>"
