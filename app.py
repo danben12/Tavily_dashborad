@@ -230,6 +230,180 @@ def _prepare_pareto(research_requests: pd.DataFrame) -> tuple[pd.DataFrame, floa
     return pareto, y_at_5
 
 
+def _is_true_stream(series: pd.Series) -> pd.Series:
+    normalized = series.astype(str).str.strip().str.lower()
+    return normalized.isin({"true", "1", "yes", "y", "t"})
+
+
+def _is_cancelled_status(series: pd.Series) -> pd.Series:
+    normalized = series.astype(str).str.strip().str.lower()
+    return normalized.str.contains("cancel", na=False)
+
+
+def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
+    st.header("Q3: UX Breaking Points & Billing Distortions (Cancellations)")
+
+    rr = _lowercase_columns(research_requests)
+    required_cols = {
+        "status",
+        "stream",
+        "client_source",
+        "response_time_seconds",
+        "llm_calls",
+        "num_sources",
+        "credits_used",
+        "request_cost",
+    }
+    if not required_cols.issubset(rr.columns):
+        st.warning("Missing required columns for Q3 cancellation analysis.")
+        return
+
+    rr = rr.copy()
+    rr["response_time_seconds"] = pd.to_numeric(rr["response_time_seconds"], errors="coerce")
+    rr["llm_calls"] = pd.to_numeric(rr["llm_calls"], errors="coerce")
+    rr["num_sources"] = pd.to_numeric(rr["num_sources"], errors="coerce")
+    rr["credits_used"] = pd.to_numeric(rr["credits_used"], errors="coerce")
+    rr["request_cost"] = pd.to_numeric(rr["request_cost"], errors="coerce")
+    rr["is_cancelled"] = _is_cancelled_status(rr["status"])
+
+    human_ui = rr[
+        _is_true_stream(rr["stream"])
+        & (~rr["client_source"].astype(str).str.strip().str.lower().eq("mcp"))
+    ].copy()
+    human_ui = human_ui.dropna(subset=["response_time_seconds"])
+    human_ui["duration_group"] = human_ui["response_time_seconds"].apply(
+        lambda x: "< 90 seconds" if x < 90 else ">= 90 seconds"
+    )
+
+    cancel_rate_gt90 = human_ui.loc[
+        human_ui["duration_group"] == ">= 90 seconds", "is_cancelled"
+    ].mean()
+    if pd.isna(cancel_rate_gt90):
+        cancel_rate_gt90 = 0.0
+
+    unbilled_cancelled_cost = rr.loc[
+        rr["is_cancelled"] & (rr["credits_used"].fillna(0).eq(0)),
+        "request_cost",
+    ].sum()
+
+    k1, k2 = st.columns(2)
+    with k1:
+        st.metric("Cancel Rate (>90s)", f"{100.0 * float(cancel_rate_gt90):.2f}%")
+    with k2:
+        st.metric("Unbilled Cancelled Cost", f"${float(unbilled_cancelled_cost):,.2f}")
+
+    wait_effect = (
+        human_ui.groupby("duration_group", as_index=False)["is_cancelled"]
+        .mean()
+        .rename(columns={"is_cancelled": "cancel_rate"})
+    )
+    wait_effect["duration_group"] = pd.Categorical(
+        wait_effect["duration_group"], categories=["< 90 seconds", ">= 90 seconds"], ordered=True
+    )
+    wait_effect = wait_effect.sort_values("duration_group")
+
+    inefficiency = (
+        human_ui.groupby("duration_group", as_index=False)[["llm_calls", "num_sources"]]
+        .mean()
+        .rename(columns={"llm_calls": "Avg LLM Calls", "num_sources": "Avg Sources Found"})
+    )
+    inefficiency["duration_group"] = pd.Categorical(
+        inefficiency["duration_group"], categories=["< 90 seconds", ">= 90 seconds"], ordered=True
+    )
+    inefficiency = inefficiency.sort_values("duration_group")
+    inefficiency_long = inefficiency.melt(
+        id_vars="duration_group",
+        value_vars=["Avg LLM Calls", "Avg Sources Found"],
+        var_name="metric",
+        value_name="value",
+    )
+
+    cancelled_only = rr.loc[rr["is_cancelled"]].copy()
+    cancelled_only["billing_status"] = cancelled_only["credits_used"].fillna(0).apply(
+        lambda x: "Unbilled (0 credits)" if x == 0 else "Billed (>0 credits)"
+    )
+    billing_dist = (
+        cancelled_only.groupby("billing_status", as_index=False)
+        .size()
+        .rename(columns={"size": "requests"})
+    )
+
+    col_left, col_right = st.columns(2)
+    with col_left:
+        fig_wait = px.bar(
+            wait_effect,
+            x="duration_group",
+            y="cancel_rate",
+            title="<b>Cancellation Rate by Wait Time</b>",
+            labels={"duration_group": "Duration Group", "cancel_rate": "Cancel Rate"},
+            color="duration_group",
+            color_discrete_sequence=["#4C78A8", "#E45756"],
+            text=wait_effect["cancel_rate"].map(lambda v: f"{100.0 * v:.2f}%"),
+        )
+        fig_wait.update_traces(
+            textposition="outside",
+            cliponaxis=False,
+            hovertemplate="Duration: %{x}<br>Cancel Rate: %{y:.2%}<extra></extra>",
+        )
+        fig_wait.update_layout(
+            template="simple_white",
+            showlegend=False,
+            title_font=dict(size=20),
+            xaxis_title_font=dict(size=14),
+            yaxis_title_font=dict(size=14),
+            font=dict(size=13),
+        )
+        fig_wait.update_yaxes(tickformat=".0%")
+        st.plotly_chart(fig_wait, use_container_width=True)
+
+    with col_right:
+        fig_ineff = px.bar(
+            inefficiency_long,
+            x="duration_group",
+            y="value",
+            color="metric",
+            barmode="group",
+            title="<b>Technical Inefficiency by Wait Time</b>",
+            labels={"duration_group": "Duration Group", "value": "Average", "metric": ""},
+            color_discrete_map={"Avg LLM Calls": "#E45756", "Avg Sources Found": "#72B7B2"},
+            text=inefficiency_long["value"].map(lambda v: f"{v:.2f}"),
+        )
+        fig_ineff.update_traces(
+            textposition="outside",
+            cliponaxis=False,
+            hovertemplate="Duration: %{x}<br>%{fullData.name}: %{y:.2f}<extra></extra>",
+        )
+        fig_ineff.update_layout(
+            template="simple_white",
+            title_font=dict(size=20),
+            xaxis_title_font=dict(size=14),
+            yaxis_title_font=dict(size=14),
+            font=dict(size=13),
+            legend_title_text="",
+        )
+        st.plotly_chart(fig_ineff, use_container_width=True)
+
+    fig_billing = px.pie(
+        billing_dist,
+        names="billing_status",
+        values="requests",
+        hole=0.5,
+        title="<b>Billing Status of Cancelled Requests</b>",
+        color="billing_status",
+        color_discrete_map={"Unbilled (0 credits)": "#E45756", "Billed (>0 credits)": "#4C78A8"},
+    )
+    fig_billing.update_traces(
+        hovertemplate="%{label}<br>Requests: %{value:,.0f}<br>Share: %{percent:.2%}<extra></extra>"
+    )
+    fig_billing.update_layout(
+        template="simple_white",
+        title_font=dict(size=20),
+        font=dict(size=13),
+        legend_title_text="",
+    )
+    st.plotly_chart(fig_billing, use_container_width=True)
+
+
 def render_product_analysis_and_cost(
     users: pd.DataFrame, hourly_usage: pd.DataFrame, research_requests: pd.DataFrame
 ) -> None:
@@ -480,6 +654,8 @@ def render_product_analysis_and_cost(
     )
     fig_stacked.update_yaxes(tickprefix="$")
     st.plotly_chart(fig_stacked, use_container_width=True)
+
+    _render_q3_cancellation_section(research_requests)
 
 
 def render_infrastructure_and_cost_analysis() -> None:
