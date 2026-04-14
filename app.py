@@ -701,14 +701,16 @@ def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame, eco
     st.plotly_chart(fig_stacked, use_container_width=True)
     free_pro_requests_compact = f"{economics_summary['free_pro_request_count'] / 1000:.0f}K"
     total_pro_cost_free_compact = _format_compact_cost(economics_summary["total_pro_cost_free"])
+    hypothetical_mini_cost_compact = _format_compact_cost(economics_summary["hypothetical_mini_cost"])
+    potential_savings_compact = _format_compact_cost(economics_summary["potential_savings"])
     st.caption(
         "Free users currently generate substantial spend on the Pro model. "
         f"They made {free_pro_requests_compact} Pro requests at about "
         f"\\${economics_summary['free_pro_avg_cost']:,.0f} per request, creating roughly "
         f"{total_pro_cost_free_compact} in direct cost. "
         f"If those requests were routed to Mini (about \\${economics_summary['mini_avg_cost']:,.0f} per request), "
-        f"cost would be about \\${economics_summary['hypothetical_mini_cost']:,.2f}, "
-        f"with potential savings of about \\${economics_summary['potential_savings']:,.2f}."
+        f"cost would be about {hypothetical_mini_cost_compact}, "
+        f"with potential savings of about {potential_savings_compact}."
     )
 
 
