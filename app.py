@@ -1206,6 +1206,7 @@ def render_product_analysis(
 # infrastructure and cost analysis page render
 # --------------------------------------------
 def render_infrastructure_and_cost_analysis(
+    users: pd.DataFrame,
     infrastructure_costs: pd.DataFrame,
     hourly_usage: pd.DataFrame,
     research_requests: pd.DataFrame,
@@ -1248,6 +1249,76 @@ def render_infrastructure_and_cost_analysis(
             _format_k_cost(finops_metrics["wasted_zero_traffic_cost"]),
             delta=f"{finops_metrics['dead_days_count']:,} dead days",
             help="Estimated infrastructure cost on days with zero recorded request volume.",
+        )
+
+    users_l = _lowercase_columns(users).copy()
+    hourly_l = _lowercase_columns(hourly_usage).copy()
+    infra_l = _lowercase_columns(infrastructure_costs).copy()
+    growth_start = pd.Timestamp("2025-11-01", tz="UTC")
+    growth_end = pd.Timestamp("2026-03-01", tz="UTC")
+
+    user_start = user_end = 0.0
+    if {"created_at", "user_id"}.issubset(users_l.columns):
+        users_l["created_at"] = pd.to_datetime(users_l["created_at"], errors="coerce", utc=True)
+        users_l = users_l.dropna(subset=["created_at"]).copy()
+        users_l["month"] = users_l["created_at"].dt.to_period("M").dt.to_timestamp().dt.tz_localize("UTC")
+        users_monthly = users_l.groupby("month").size().rename("new_users")
+        user_start = float(users_monthly.get(growth_start, 0.0))
+        user_end = float(users_monthly.get(growth_end, 0.0))
+
+    req_start = req_end = 0.0
+    if {"hour", "request_count"}.issubset(hourly_l.columns):
+        hourly_l["hour"] = pd.to_datetime(hourly_l["hour"], errors="coerce", utc=True)
+        hourly_l["request_count"] = pd.to_numeric(hourly_l["request_count"], errors="coerce").fillna(0.0)
+        hourly_l = hourly_l.dropna(subset=["hour"]).copy()
+        hourly_l["month"] = hourly_l["hour"].dt.to_period("M").dt.to_timestamp().dt.tz_localize("UTC")
+        req_monthly = hourly_l.groupby("month")["request_count"].sum()
+        req_start = float(req_monthly.get(growth_start, 0.0))
+        req_end = float(req_monthly.get(growth_end, 0.0))
+
+    infra_start = infra_end = 0.0
+    infra_cols = [c for c in infra_l.columns if c.startswith("infra_")]
+    if "hour" in infra_l.columns and infra_cols:
+        infra_l["hour"] = pd.to_datetime(infra_l["hour"], errors="coerce", utc=True)
+        infra_l = infra_l.dropna(subset=["hour"]).copy()
+        for col in infra_cols:
+            infra_l[col] = pd.to_numeric(infra_l[col], errors="coerce").fillna(0.0)
+        infra_l["infra_total"] = infra_l[infra_cols].sum(axis=1)
+        infra_l["month"] = infra_l["hour"].dt.to_period("M").dt.to_timestamp().dt.tz_localize("UTC")
+        infra_monthly = infra_l.groupby("month")["infra_total"].sum()
+        infra_start = float(infra_monthly.get(growth_start, 0.0))
+        infra_end = float(infra_monthly.get(growth_end, 0.0))
+
+    def _growth_pct(start_value: float, end_value: float) -> float:
+        if start_value <= 0:
+            return 0.0
+        return 100.0 * ((end_value - start_value) / start_value)
+
+    users_growth_pct = _growth_pct(user_start, user_end)
+    requests_growth_pct = _growth_pct(req_start, req_end)
+    infra_growth_pct = _growth_pct(infra_start, infra_end)
+
+    g1, g2, g3 = st.columns(3)
+    with g1:
+        st.metric(
+            "New users growth (Nov to Mar)",
+            f"{user_end:,.0f}",
+            delta=f"+{users_growth_pct:.1f}%",
+            help=f"Monthly new users grew from {user_start:,.0f} in Nov 2025 to {user_end:,.0f} in Mar 2026.",
+        )
+    with g2:
+        st.metric(
+            "Requests growth (Nov to Mar)",
+            _format_k_cost(req_end),
+            delta=f"+{requests_growth_pct:.1f}%",
+            help=f"Monthly requests grew from {req_start:,.0f} in Nov 2025 to {req_end:,.0f} in Mar 2026.",
+        )
+    with g3:
+        st.metric(
+            "Infrastructure growth (Nov to Mar)",
+            _format_k_cost(infra_end),
+            delta=f"+{infra_growth_pct:.1f}%",
+            help=f"Monthly infrastructure cost grew from ${infra_start:,.0f} in Nov 2025 to ${infra_end:,.0f} in Mar 2026.",
         )
 
     col1, col2 = st.columns(2)
@@ -1404,6 +1475,7 @@ def main() -> None:
         render_product_analysis(users, hourly_usage, research_requests)
     else:
         render_infrastructure_and_cost_analysis(
+            users,
             infrastructure_costs,
             hourly_usage,
             research_requests,
