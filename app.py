@@ -632,7 +632,7 @@ def render_product_analysis_and_cost(
             bar_colors = [
                 "#E45756"
                 if label.lower() == "research"
-                else "rgba(130, 130, 130, 0.25)"
+                else "rgba(76, 120, 168, 0.25)"
                 for label in no_return_df["first_request_label_display"]
             ]
             worst_row = no_return_df.loc[no_return_df["pct_single_row"].idxmax()]
