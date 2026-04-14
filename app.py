@@ -849,6 +849,7 @@ def _render_latency_chart(research_requests: pd.DataFrame) -> None:
     )
     fig_latency.update_layout(
         template="simple_white",
+        showlegend=False,
         title_font=dict(size=20),
         xaxis_title_font=dict(size=14),
         yaxis_title_font=dict(size=14),
