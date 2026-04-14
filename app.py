@@ -299,6 +299,10 @@ def _format_k_cost(value: float) -> str:
     return f"${value / 1_000:.2f}K"
 
 
+def _format_k_plain(value: float) -> str:
+    return f"{value / 1_000:.2f}K"
+
+
 # ------------------------------
 # infrastructure data preparation
 # ------------------------------
@@ -1318,7 +1322,7 @@ def render_infrastructure_and_cost_analysis(
             f"X{infra_growth_ratio:.2f}",
             help=(
                 f"Ratio of monthly infrastructure cost in Mar 2026 vs Nov 2025 "
-                f"({_format_k_cost(infra_end)} vs {_format_k_cost(infra_start)})."
+                f"({_format_k_plain(infra_end)} vs {_format_k_plain(infra_start)})."
             ),
         )
 
