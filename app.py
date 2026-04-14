@@ -266,13 +266,14 @@ def _prepare_pareto(research_requests: pd.DataFrame) -> tuple[pd.DataFrame, floa
     return pareto, y_at_5
 
 
-def _prepare_latency_points(research_requests: pd.DataFrame) -> pd.DataFrame | None:
-    # Keep only valid numeric response-time rows for latency distribution chart.
+def _prepare_cancelled_response_times(research_requests: pd.DataFrame) -> pd.DataFrame | None:
+    # Keep only cancelled requests with valid numeric response time.
     rr = _lowercase_columns(research_requests)
-    if "response_time_seconds" not in rr.columns:
+    if not {"status", "response_time_seconds"}.issubset(rr.columns):
         return None
+    rr["is_cancelled"] = _is_cancelled_status(rr["status"])
     rr["response_time_seconds"] = pd.to_numeric(rr["response_time_seconds"], errors="coerce")
-    return rr.dropna(subset=["response_time_seconds"])
+    return rr.loc[rr["is_cancelled"]].dropna(subset=["response_time_seconds"])
 
 
 def _is_true_stream(series: pd.Series) -> pd.Series:
@@ -823,41 +824,42 @@ def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame, eco
     )
 
 
-def _render_latency_chart(research_requests: pd.DataFrame) -> None:
-    latency_points = _prepare_latency_points(research_requests)
-    if latency_points is None:
-        st.warning("Missing `response_time_seconds` in research data.")
+def _render_cancelled_response_time_histogram(research_requests: pd.DataFrame) -> None:
+    cancelled_points = _prepare_cancelled_response_times(research_requests)
+    if cancelled_points is None:
+        st.warning("Missing `status` or `response_time_seconds` in research data.")
         return
-    if latency_points.empty:
-        st.warning("No usable response-time data found.")
+    if cancelled_points.empty:
+        st.warning("No usable cancelled-request response-time data found.")
         return
 
-    max_response_time = float(latency_points["response_time_seconds"].max())
+    max_response_time = float(cancelled_points["response_time_seconds"].max())
     histogram_end = max(30.0, math.ceil(max_response_time / 30.0) * 30.0)
 
-    fig_latency = go.Figure(
+    fig_cancelled_hist = go.Figure(
         data=[
             go.Histogram(
-                x=latency_points["response_time_seconds"],
+                x=cancelled_points["response_time_seconds"],
                 xbins=dict(start=0, end=histogram_end, size=30),
                 marker=dict(color="#2D66AD"),
-                hovertemplate="Response time: %{x:.0f} sec<br>Requests: %{y:,.0f}<extra></extra>",
+                hovertemplate="Response time: %{x:.0f} sec<br>Cancelled requests: %{y:,.0f}<extra></extra>",
             )
         ]
     )
-    fig_latency.update_layout(
+    fig_cancelled_hist.update_layout(
         template="simple_white",
         showlegend=False,
-        title="response time distribution (30-second buckets)",
+        title="Cancelled requests response time (30-second buckets)",
         title_font=dict(size=20),
         xaxis_title_font=dict(size=14),
         yaxis_title_font=dict(size=14),
         font=dict(size=13),
         margin=dict(t=60, b=40, l=30, r=30),
     )
-    fig_latency.update_xaxes(title_text="Response time (seconds)")
-    fig_latency.update_yaxes(title_text="Requests")
-    st.plotly_chart(fig_latency, use_container_width=True)
+    fig_cancelled_hist.update_xaxes(title_text="Response time (seconds)")
+    fig_cancelled_hist.update_yaxes(title_text="Cancelled requests")
+    fig_cancelled_hist.add_vline(x=90.0, line_dash="dash", line_color="#E45756", line_width=2)
+    st.plotly_chart(fig_cancelled_hist, use_container_width=True)
 
 
 def _render_cancellation_rate_by_wait_time_chart(wait_effect: pd.DataFrame) -> None:
@@ -1019,7 +1021,7 @@ def render_product_analysis(
     prepared = _prepare_cancellation_chart_data(research_requests)
     col5, col6 = st.columns(2)
     with col5:
-        _render_latency_chart(research_requests)
+        _render_cancelled_response_time_histogram(research_requests)
     with col6:
         if prepared is None:
             st.warning("Missing required columns for Q3 cancellation analysis.")
