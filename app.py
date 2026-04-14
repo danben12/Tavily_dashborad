@@ -520,6 +520,12 @@ def _render_product_top_metrics(
     cancellation_rate_pct: float,
     success_request_count: int,
     cancelled_request_count: int,
+    streaming_cancellation_rate_pct: float,
+    non_streaming_cancellation_rate_pct: float,
+    streaming_cancelled_requests: int,
+    streaming_total_requests: int,
+    non_streaming_cancelled_requests: int,
+    non_streaming_total_requests: int,
 ) -> None:
     st.markdown(
         """
@@ -535,7 +541,7 @@ def _render_product_top_metrics(
         unsafe_allow_html=True,
     )
 
-    m1, m2, m3, m4 = st.columns(4)
+    m1, m2, m3 = st.columns(3)
     with m1:
         st.metric(
             "Research API users acquisition percentage",
@@ -561,6 +567,8 @@ def _render_product_top_metrics(
                 f"total success requests: {success_request_count:,}."
             ),
         )
+
+    m4, m5, m6 = st.columns(3)
     with m4:
         st.metric(
             "Cancellation rate",
@@ -568,6 +576,24 @@ def _render_product_top_metrics(
             help=(
                 "share of research API requests with status cancelled. "
                 f"total cancelled requests: {cancelled_request_count:,}."
+            ),
+        )
+    with m5:
+        st.metric(
+            "Streaming cancellation rate",
+            f"{streaming_cancellation_rate_pct:.2f}%",
+            help=(
+                f"cancelled requests: {streaming_cancelled_requests:,} "
+                f"out of {streaming_total_requests:,} streaming requests."
+            ),
+        )
+    with m6:
+        st.metric(
+            "Non-streaming cancellation rate",
+            f"{non_streaming_cancellation_rate_pct:.2f}%",
+            help=(
+                f"cancelled requests: {non_streaming_cancelled_requests:,} "
+                f"out of {non_streaming_total_requests:,} non-streaming requests."
             ),
         )
 
@@ -939,30 +965,6 @@ def _render_cancellation_rate_by_wait_time_chart(wait_effect: pd.DataFrame) -> N
     st.plotly_chart(fig_wait, use_container_width=True)
 
 
-def _render_streaming_vs_non_streaming_cancel_kpis(
-    stream_metrics: dict[str, float | int],
-) -> None:
-    k1, k2 = st.columns(2)
-    with k1:
-        st.metric(
-            "Streaming cancellation rate",
-            f"{float(stream_metrics['streaming_cancellation_rate_pct']):.2f}%",
-            help=(
-                f"cancelled requests: {int(stream_metrics['streaming_cancelled_requests']):,} "
-                f"out of {int(stream_metrics['streaming_total_requests']):,} streaming requests."
-            ),
-        )
-    with k2:
-        st.metric(
-            "Non-streaming cancellation rate",
-            f"{float(stream_metrics['non_streaming_cancellation_rate_pct']):.2f}%",
-            help=(
-                f"cancelled requests: {int(stream_metrics['non_streaming_cancelled_requests']):,} "
-                f"out of {int(stream_metrics['non_streaming_total_requests']):,} non-streaming requests."
-            ),
-        )
-
-
 def _render_technical_inefficiency_by_wait_time_chart(inefficiency_long: pd.DataFrame) -> None:
     fig_ineff = px.bar(
         inefficiency_long,
@@ -1044,20 +1046,41 @@ def render_product_analysis(
     cancellation_rate_pct = 0.0
     success_request_count = 0
     cancelled_request_count = 0
+    streaming_cancellation_rate_pct = 0.0
+    non_streaming_cancellation_rate_pct = 0.0
+    streaming_cancelled_requests = 0
+    streaming_total_requests = 0
+    non_streaming_cancelled_requests = 0
+    non_streaming_total_requests = 0
     if "request_cost" in rr_cost.columns:
         total_request_cost = float(
             pd.to_numeric(rr_cost["request_cost"], errors="coerce").fillna(0).sum()
         )
     if "status" in rr_cost.columns:
         status_norm = rr_cost["status"].astype(str).str.strip().str.lower()
+        is_cancelled = _is_cancelled_status(status_norm)
         denominator = len(status_norm)
         if denominator > 0:
             success_request_count = int(status_norm.eq("success").sum())
-            cancelled_request_count = int(_is_cancelled_status(status_norm).sum())
+            cancelled_request_count = int(is_cancelled.sum())
             success_rate_pct = 100.0 * float(success_request_count) / denominator
             cancellation_rate_pct = (
                 100.0 * float(cancelled_request_count) / denominator
             )
+        if "stream" in rr_cost.columns:
+            stream_flag = _is_true_stream(rr_cost["stream"])
+            streaming_total_requests = int(stream_flag.sum())
+            non_streaming_total_requests = int((~stream_flag).sum())
+            streaming_cancelled_requests = int((is_cancelled & stream_flag).sum())
+            non_streaming_cancelled_requests = int((is_cancelled & ~stream_flag).sum())
+            if streaming_total_requests > 0:
+                streaming_cancellation_rate_pct = (
+                    100.0 * float(streaming_cancelled_requests) / streaming_total_requests
+                )
+            if non_streaming_total_requests > 0:
+                non_streaming_cancellation_rate_pct = (
+                    100.0 * float(non_streaming_cancelled_requests) / non_streaming_total_requests
+                )
 
     # 1) top metrics
     _render_product_top_metrics(
@@ -1067,6 +1090,12 @@ def render_product_analysis(
         cancellation_rate_pct,
         success_request_count,
         cancelled_request_count,
+        streaming_cancellation_rate_pct,
+        non_streaming_cancellation_rate_pct,
+        streaming_cancelled_requests,
+        streaming_total_requests,
+        non_streaming_cancelled_requests,
+        non_streaming_total_requests,
     )
 
     # 2) first row charts
@@ -1093,9 +1122,8 @@ def render_product_analysis(
         if prepared is None:
             st.warning("Missing required columns for Q3 cancellation analysis.")
         else:
-            wait_effect, inefficiency_long, billing_dist, stream_metrics = prepared
+            wait_effect, inefficiency_long, billing_dist, _stream_metrics = prepared
             _render_cancellation_rate_by_wait_time_chart(wait_effect)
-            _render_streaming_vs_non_streaming_cancel_kpis(stream_metrics)
 
     # 8-9) cancellation diagnostics side by side
     if prepared is not None:
