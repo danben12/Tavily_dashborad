@@ -1601,10 +1601,10 @@ def render_infrastructure_and_cost_analysis(
                 ],
                 "day_type": ["Weekday", "Weekend", "Weekday", "Weekend"],
                 "index_value": [
-                    100.0 * weekday_req_mean / weekend_req_mean,
                     100.0,
-                    100.0 * weekday_total_cost_mean / weekend_total_cost_mean,
+                    100.0 * weekend_req_mean / weekday_req_mean,
                     100.0,
+                    100.0 * weekend_total_cost_mean / weekday_total_cost_mean,
                 ],
             }
         )
@@ -1614,10 +1614,10 @@ def render_infrastructure_and_cost_analysis(
             y="index_value",
             color="day_type",
             barmode="group",
-            title="Weekend vs weekday comparison (weekend baseline = 100)",
+            title="Weekend vs weekday comparison",
             labels={
                 "metric": "Metric",
-                "index_value": "Index (weekend = 100)",
+                "index_value": "Index (weekday = 100)",
                 "day_type": "Day type",
             },
             color_discrete_map={"Weekday": "#4C78A8", "Weekend": "#E45756"},
