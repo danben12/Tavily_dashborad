@@ -1407,9 +1407,15 @@ def render_infrastructure_and_cost_analysis(
             secondary_y=True,
         )
         st.plotly_chart(fig_growth, use_container_width=True)
+        corr_series = growth_daily[["requests_ma7", "total_cost_ma7"]].dropna()
+        pearson_r = (
+            float(corr_series["requests_ma7"].corr(corr_series["total_cost_ma7"]))
+            if len(corr_series) > 1
+            else 0.0
+        )
         st.caption(
             "This chart shows day-level aggregation with 7-day moving averages for total requests and total daily infrastructure cost on two vertical axes. "
-            "The two lines move together, indicating a strong positive correlation between demand and cost trends over time. "
+            f"The two lines move together, indicating a strong positive correlation between demand and cost trends over time (Pearson r = {pearson_r:.2f}). "
             f"Between Nov 2025 and Mar 2026, new users grew by about X{users_growth_ratio:.2f}, "
             f"requests grew by about X{requests_growth_ratio:.2f}, "
             f"while infrastructure cost increased by about X{infra_growth_ratio:.2f}. "
