@@ -150,7 +150,7 @@ def _single_row_no_return_by_first_request(lifecycle: pd.DataFrame) -> pd.DataFr
     )
     out["single_row_count"] = out["single_row_count"].astype(int)
     out["pct_single_row"] = 100.0 * out["single_row_count"] / out["user_count"]
-    out["first_request_label"] = out["first_source"].astype(str).str.title()
+    out["first_request_label"] = out["first_source"].astype(str).str.lower()
     return out
 
 
@@ -363,8 +363,8 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
     inefficiency = (
         human_ui.groupby("duration_group", as_index=False).agg(
             **{
-                "Median LLM Calls": ("llm_calls", "median"),
-                "Median Sources Found": ("num_sources", "median"),
+                "median LLM calls": ("llm_calls", "median"),
+                "median sources found": ("num_sources", "median"),
             }
         )
     )
@@ -374,14 +374,14 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
     inefficiency = inefficiency.sort_values("duration_group")
     inefficiency_long = inefficiency.melt(
         id_vars="duration_group",
-        value_vars=["Median LLM Calls", "Median Sources Found"],
+        value_vars=["median LLM calls", "median sources found"],
         var_name="metric",
         value_name="value",
     )
 
     cancelled_only = rr.loc[rr["is_cancelled"]].copy()
     cancelled_only["billing_status"] = cancelled_only["credits_used"].fillna(0).apply(
-        lambda x: "Unbilled (0 credits)" if x == 0 else "Billed (>0 credits)"
+        lambda x: "unbilled (0 credits)" if x == 0 else "billed (>0 credits)"
     )
     billing_dist = (
         cancelled_only.groupby("billing_status", as_index=False)
@@ -395,8 +395,8 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
             wait_effect,
             x="duration_group",
             y="cancel_rate",
-            title="<b>Cancellation Rate by Wait Time</b>",
-            labels={"duration_group": "Duration Group", "cancel_rate": "Cancel Rate"},
+            title="<b>cancellation rate by wait time</b>",
+            labels={"duration_group": "duration group", "cancel_rate": "cancel rate"},
             color="duration_group",
             color_discrete_sequence=["#4C78A8", "#E45756"],
             text=wait_effect["cancel_rate"].map(lambda v: f"{100.0 * v:.2f}%"),
@@ -406,10 +406,10 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
             textposition="outside",
             cliponaxis=False,
             hovertemplate=(
-                "Duration: %{x}<br>"
-                "Cancel Rate: %{y:.2%}<br>"
-                "Total Requests: %{customdata[0]:,.0f}<br>"
-                "Cancelled Requests: %{customdata[1]:,.0f}<extra></extra>"
+                "duration: %{x}<br>"
+                "cancel rate: %{y:.2%}<br>"
+                "total requests: %{customdata[0]:,.0f}<br>"
+                "cancelled requests: %{customdata[1]:,.0f}<extra></extra>"
             ),
         )
         fig_wait.update_layout(
@@ -430,15 +430,15 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
             y="value",
             color="metric",
             barmode="group",
-            title="<b>Technical Inefficiency by Wait Time</b>",
-            labels={"duration_group": "Duration Group", "value": "Average", "metric": ""},
-            color_discrete_map={"Median LLM Calls": "#E45756", "Median Sources Found": "#72B7B2"},
+            title="<b>technical inefficiency by wait time</b>",
+            labels={"duration_group": "duration group", "value": "average", "metric": ""},
+            color_discrete_map={"median LLM calls": "#E45756", "median sources found": "#72B7B2"},
             text=inefficiency_long["value"].map(lambda v: f"{v:.2f}"),
         )
         fig_ineff.update_traces(
             textposition="outside",
             cliponaxis=False,
-            hovertemplate="Duration: %{x}<br>%{fullData.name}: %{y:.2f}<extra></extra>",
+            hovertemplate="duration: %{x}<br>%{fullData.name}: %{y:.2f}<extra></extra>",
         )
         fig_ineff.update_layout(
             template="simple_white",
@@ -455,12 +455,12 @@ def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
         names="billing_status",
         values="requests",
         hole=0.5,
-        title="<b>Billing Status of Cancelled Requests</b>",
+        title="<b>billing status of cancelled requests</b>",
         color="billing_status",
-        color_discrete_map={"Unbilled (0 credits)": "#E45756", "Billed (>0 credits)": "#4C78A8"},
+            color_discrete_map={"unbilled (0 credits)": "#E45756", "billed (>0 credits)": "#4C78A8"},
     )
     fig_billing.update_traces(
-        hovertemplate="%{label}<br>Requests: %{value:,.0f}<br>Share: %{percent:.2%}<extra></extra>"
+        hovertemplate="%{label}<br>requests: %{value:,.0f}<br>share: %{percent:.2%}<extra></extra>"
     )
     fig_billing.update_layout(
         template="simple_white",
@@ -572,7 +572,7 @@ def _prepare_finops_data(
 def render_product_analysis_and_cost(
     users: pd.DataFrame, hourly_usage: pd.DataFrame, research_requests: pd.DataFrame
 ) -> None:
-    st.title("Research API Product Analysis")
+    st.title("Research API product analysis")
 
     lifecycle, _joined_users_count = _build_hourly_lifecycle(users, hourly_usage)
     if lifecycle.empty:
@@ -605,14 +605,14 @@ def render_product_analysis_and_cost(
             "Research API users acquisition precentage",
             f"{acquisition_pct:.2f}%",
             help=(
-                "Out of 16,324 total users, 12,895 joined on/after Nov 1, 2025. "
-                "Among them, 12,006 had at least one activity after their join date. "
-                "Out of those active new users, 2,270 used the Research API as their first activity."
+                "out of 16,324 total users, 12,895 joined on/after Nov 1, 2025. "
+                "out of them, 12,006 had at least one activity after their join date. "
+                "out of those active new users, 2,270 used the Research API as their first activity."
             ),
         )
     with m2:
         st.metric(
-            "Total Request Cost",
+            "Total requests costs.",
             _format_compact_cost(total_request_cost),
             help="sum of all research API request costs.",
         )
@@ -629,10 +629,10 @@ def render_product_analysis_and_cost(
                 no_return_df,
                 x="first_request_label",
                 y="pct_single_row",
-                title="<b>No Further Logged Usage After First Action</b>",
+                title="<b>no further logged usage after first action</b>",
                 labels={
-                    "first_request_label": "First request type",
-                    "pct_single_row": "Users with only 1 usage row (%)",
+                    "first_request_label": "first request type",
+                    "pct_single_row": "users with only 1 usage row (%)",
                 },
                 text=no_return_df["pct_single_row"].map(lambda x: f"{x:.2f}%"),
                 color="first_source",
@@ -645,9 +645,9 @@ def render_product_analysis_and_cost(
                 cliponaxis=False,
                 hovertemplate=(
                     "%{x}<br>"
-                    "Share with 1 row only: %{y:.2f}%<br>"
-                    "Users in segment: %{customdata[0]:,.0f}<br>"
-                    "Users with 1 row: %{customdata[1]:,.0f}<extra></extra>"
+                    "share with 1 row only: %{y:.2f}%<br>"
+                    "users in segment: %{customdata[0]:,.0f}<br>"
+                    "users with 1 row: %{customdata[1]:,.0f}<extra></extra>"
                 ),
             )
             fig_retention.update_layout(
@@ -674,10 +674,10 @@ def render_product_analysis_and_cost(
                     latency_points,
                     x="model",
                     y="response_time_seconds",
-                    title="<b>Response Time Distribution by Model (Mini vs Pro)</b>",
+                    title="<b>response time distribution by model (mini vs pro)</b>",
                     labels={
-                        "response_time_seconds": "Response Time (seconds)",
-                        "model": "Model",
+                        "response_time_seconds": "response time (seconds)",
+                        "model": "model",
                     },
                     points=False,
                     color="model",
@@ -694,12 +694,12 @@ def render_product_analysis_and_cost(
                 )
                 fig_latency.update_traces(
                     hovertemplate=(
-                        "Model: %{x}<br>"
+                        "model: %{x}<br>"
                         "Q1: %{q1:.2f} sec<br>"
-                        "Median: %{median:.2f} sec<br>"
+                        "median: %{median:.2f} sec<br>"
                         "Q3: %{q3:.2f} sec<br>"
-                        "Min: %{lowerfence:.2f} sec<br>"
-                        "Max: %{upperfence:.2f} sec<extra></extra>"
+                        "min: %{lowerfence:.2f} sec<br>"
+                        "max: %{upperfence:.2f} sec<extra></extra>"
                     )
                 )
                 st.plotly_chart(fig_latency, use_container_width=True)
@@ -718,10 +718,10 @@ def render_product_analysis_and_cost(
         pareto,
         x="cum_users_pct",
         y="cum_requests_pct",
-        title="<b>Research API Traffic Concentration (Pareto Curve)</b>",
+        title="<b>Research API traffic concentration (pareto curve)</b>",
         labels={
-            "cum_users_pct": "Cumulative % of Users",
-            "cum_requests_pct": "Cumulative % of Total Requests",
+            "cum_users_pct": "cumulative % of users",
+            "cum_requests_pct": "cumulative % of total requests",
         },
     )
     fig_pareto.add_trace(
@@ -729,7 +729,7 @@ def render_product_analysis_and_cost(
             x=pareto["cum_users_pct"],
             y=pareto["cum_users_pct"],
             mode="lines",
-            name="Linear baseline",
+            name="linear baseline",
             line=dict(color="#FF7F0E", width=2, dash="dot"),
         )
     )
@@ -742,14 +742,14 @@ def render_product_analysis_and_cost(
         fillcolor="rgba(0,87,217,0.30)",
     )
     fig_pareto.update_traces(
-        selector=dict(name="Linear baseline"),
+        selector=dict(name="linear baseline"),
         line=dict(color="#FF7F0E", width=2, dash="dot"),
         fill=None,
     )
     if len(fig_pareto.data) >= 1:
-        fig_pareto.data[0].hovertemplate = "Users: %{x:.2f}%<br>Requests: %{y:.2f}%<extra></extra>"
+        fig_pareto.data[0].hovertemplate = "users: %{x:.2f}%<br>requests: %{y:.2f}%<extra></extra>"
     if len(fig_pareto.data) >= 2:
-        fig_pareto.data[1].hovertemplate = "Users: %{x:.2f}%<br>Linear: %{y:.2f}%<extra></extra>"
+        fig_pareto.data[1].hovertemplate = "users: %{x:.2f}%<br>linear: %{y:.2f}%<extra></extra>"
     fig_pareto.update_layout(
         template="simple_white",
         title_font=dict(size=20),
@@ -768,7 +768,7 @@ def render_product_analysis_and_cost(
             values="users",
             names="user_type",
             hole=0.5,
-            title="<b>User Base: Free vs. Paying</b>",
+            title="<b>user base: free vs paying</b>",
             color="user_type",
             color_discrete_map=USER_COLORS,
         )
@@ -779,7 +779,7 @@ def render_product_analysis_and_cost(
             legend_title_text="",
         )
         fig_user_dist.update_traces(
-            hovertemplate="%{label}: %{value:,.2f} users<br>Share: %{percent:.2%}<extra></extra>"
+            hovertemplate="%{label}: %{value:,.2f} users<br>share: %{percent:.2%}<extra></extra>"
         )
         st.plotly_chart(fig_user_dist, use_container_width=True)
 
@@ -788,8 +788,8 @@ def render_product_analysis_and_cost(
             request_cost_dist,
             x="model",
             y="request_cost",
-            title="<b>Request Cost Distribution by Model</b>",
-            labels={"model": "Model", "request_cost": "Average Request Cost ($)"},
+            title="<b>request cost distribution by model</b>",
+            labels={"model": "model", "request_cost": "average request cost ($)"},
             color="model",
             color_discrete_map=MODEL_COLORS_UPPER,
             points=False,
@@ -803,7 +803,7 @@ def render_product_analysis_and_cost(
             font=dict(size=13),
         )
         fig_avg_cost.update_traces(
-            hovertemplate="Model: %{x}<br>Request Cost: $%{y:,.2f}<extra></extra>"
+            hovertemplate="model: %{x}<br>request cost: $%{y:,.2f}<extra></extra>"
         )
         fig_avg_cost.update_yaxes(tickprefix="$")
         st.plotly_chart(fig_avg_cost, use_container_width=True)
@@ -814,11 +814,11 @@ def render_product_analysis_and_cost(
         y="request_cost",
         color="user_type",
         barmode="stack",
-        title="<b>Total Infrastructure Cost by Model and User Type</b>",
+        title="<b>total request cost by model and user type</b>",
         labels={
-            "model": "Model",
-            "request_cost": "Total Request Cost ($)",
-            "user_type": "User Type",
+            "model": "model",
+            "request_cost": "total request cost ($)",
+            "user_type": "user type",
         },
         color_discrete_map=USER_COLORS,
     )
@@ -831,7 +831,7 @@ def render_product_analysis_and_cost(
         legend_title_text="",
     )
     fig_stacked.update_traces(
-        hovertemplate="Model: %{x}<br>User Type: %{fullData.name}<br>Total Cost: $%{y:,.2f}<extra></extra>"
+        hovertemplate="model: %{x}<br>user type: %{fullData.name}<br>total cost: $%{y:,.2f}<extra></extra>"
     )
     fig_stacked.update_yaxes(tickprefix="$")
     st.plotly_chart(fig_stacked, use_container_width=True)
@@ -844,7 +844,7 @@ def render_infrastructure_and_cost_analysis(
     hourly_usage: pd.DataFrame,
     research_requests: pd.DataFrame,
 ) -> None:
-    st.header("Part 2: Infrastructure & FinOps - The AI Illusion")
+    st.header("part 2: infrastructure & finops - the AI illusion")
 
     prepared = _prepare_finops_data(infrastructure_costs, hourly_usage, research_requests)
     if prepared is None:
@@ -854,12 +854,12 @@ def render_infrastructure_and_cost_analysis(
 
     k1, k2, k3 = st.columns(3)
     with k1:
-        st.metric("Total Hardware Cost", f"${finops_metrics['total_hardware_cost']:,.2f}")
+        st.metric("total hardware cost", f"${finops_metrics['total_hardware_cost']:,.2f}")
     with k2:
-        st.metric("Total AI/Model Cost", f"${finops_metrics['total_ai_cost']:,.2f}")
+        st.metric("total AI/model cost", f"${finops_metrics['total_ai_cost']:,.2f}")
     with k3:
         st.metric(
-            "Wasted Zero-Traffic Cost",
+            "wasted zero-traffic cost",
             f"${finops_metrics['wasted_zero_traffic_cost']:,.2f}",
             delta=f"{finops_metrics['dead_days_count']:,} dead days",
         )
@@ -868,7 +868,7 @@ def render_infrastructure_and_cost_analysis(
     with col1:
         budget_split = pd.DataFrame(
             {
-                "category": ["Hardware & Infrastructure", "AI & LLM Tokens"],
+                "category": ["hardware & infrastructure", "AI & LLM tokens"],
                 "cost": [
                     finops_metrics["total_hardware_cost"],
                     finops_metrics["total_ai_cost"],
@@ -880,15 +880,15 @@ def render_infrastructure_and_cost_analysis(
             names="category",
             values="cost",
             hole=0.5,
-            title="<b>Budget Split: Infrastructure vs Model Cost</b>",
+            title="<b>budget split: infrastructure vs model cost</b>",
             color="category",
             color_discrete_map={
-                "Hardware & Infrastructure": "#4C78A8",
-                "AI & LLM Tokens": "#E45756",
+                "hardware & infrastructure": "#4C78A8",
+                "AI & LLM tokens": "#E45756",
             },
         )
         fig_donut.update_traces(
-            hovertemplate="%{label}<br>Cost: $%{value:,.2f}<br>Share: %{percent:.2%}<extra></extra>"
+            hovertemplate="%{label}<br>cost: $%{value:,.2f}<br>share: %{percent:.2%}<extra></extra>"
         )
         fig_donut.update_layout(
             template="simple_white",
@@ -911,10 +911,10 @@ def render_infrastructure_and_cost_analysis(
             go.Scatter(
                 x=growth_daily["day"],
                 y=growth_daily["requests_ma7"],
-                name="Total Requests (7D MA)",
+                name="total requests (7d ma)",
                 mode="lines+markers",
                 line=dict(color="#4C78A8", width=3),
-                hovertemplate="Day: %{x}<br>Requests (7D MA): %{y:,.0f}<extra></extra>",
+                hovertemplate="day: %{x}<br>requests (7d ma): %{y:,.0f}<extra></extra>",
             ),
             secondary_y=False,
         )
@@ -922,25 +922,25 @@ def render_infrastructure_and_cost_analysis(
             go.Scatter(
                 x=growth_daily["day"],
                 y=growth_daily["total_cost_ma7"],
-                name="Total Cost (7D MA)",
+                name="total cost (7d ma)",
                 mode="lines+markers",
                 line=dict(color="#E45756", width=3),
-                hovertemplate="Day: %{x}<br>Total Cost (7D MA): $%{y:,.2f}<extra></extra>",
+                hovertemplate="day: %{x}<br>total cost (7d ma): $%{y:,.2f}<extra></extra>",
             ),
             secondary_y=True,
         )
         fig_growth.update_layout(
             template="simple_white",
-            title="<b>The Growth Paradox: Requests vs Total Cost Over Time</b>",
+            title="<b>the growth paradox: requests vs total cost over time</b>",
             title_font=dict(size=20),
             font=dict(size=13),
             legend_title_text="",
             margin=dict(t=70, b=40, l=30, r=30),
         )
-        fig_growth.update_xaxes(title_text="Time")
-        fig_growth.update_yaxes(title_text="Total Requests", secondary_y=False)
+        fig_growth.update_xaxes(title_text="time")
+        fig_growth.update_yaxes(title_text="total requests", secondary_y=False)
         fig_growth.update_yaxes(
-            title_text="Total Daily Cost ($) — Infra + Model",
+            title_text="total daily cost ($) - infra + model",
             tickprefix="$",
             secondary_y=True,
         )
@@ -973,16 +973,16 @@ def render_infrastructure_and_cost_analysis(
     )
     fig_heatmap = px.imshow(
         heatmap_pivot,
-        labels=dict(x="Hour of Day", y="Day of Week", color="Mean Infra Cost ($)"),
-        title="<b>Mean Infrastructure Cost by Day of Week and Hour</b>",
+        labels=dict(x="hour of day", y="day of week", color="mean infra cost ($)"),
+        title="<b>mean infrastructure cost by day of week and hour</b>",
         color_continuous_scale=COOLWARM_SCALE,
         aspect="auto",
     )
     fig_heatmap.update_traces(
         hovertemplate=(
-            "Day: %{y}<br>"
-            "Hour: %{x}:00<br>"
-            "Mean Infra Cost: $%{z:,.2f}<extra></extra>"
+            "day: %{y}<br>"
+            "hour: %{x}:00<br>"
+            "mean infra cost: $%{z:,.2f}<extra></extra>"
         )
     )
     fig_heatmap.update_layout(
@@ -997,7 +997,7 @@ def render_infrastructure_and_cost_analysis(
 
 def main() -> None:
     st.set_page_config(
-        page_title="Tavily Dashboard",
+        page_title="Tavily dashboard",
         page_icon="📊",
         layout="wide",
     )
@@ -1010,11 +1010,11 @@ def main() -> None:
     ) = load_datasets_from_zip()
 
     page = st.sidebar.radio(
-        "Pages",
-        ["Product Analysis", "Infrastructure & Cost Analysis"],
+        "pages",
+        ["product analysis", "infrastructure & cost analysis"],
     )
 
-    if page == "Product Analysis":
+    if page == "product analysis":
         render_product_analysis_and_cost(users, hourly_usage, research_requests)
     else:
         render_infrastructure_and_cost_analysis(
