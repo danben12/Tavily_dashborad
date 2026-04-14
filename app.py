@@ -987,7 +987,7 @@ def _render_cancellation_rate_by_wait_time_chart(wait_effect: pd.DataFrame) -> N
     slow_cancelled = int(slow_row["cancelled_count"].iloc[0]) if not slow_row.empty else 0
     rate_gap = (slow_rate - fast_rate) * 100.0
     st.caption(
-        "This chart compares cancellation rates across wait-time duration groups. "
+        "This chart compares cancellation rates across wait-time duration groups for streaming-enabled requests only. "
         f"For requests under 90 seconds, the cancellation rate is {fast_rate * 100.0:.1f}% "
         f"({fast_cancelled:,} cancelled requests), while for requests at or above 90 seconds "
         f"it rises to {slow_rate * 100.0:.1f}% ({slow_cancelled:,} cancelled requests). "
