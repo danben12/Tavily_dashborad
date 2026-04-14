@@ -515,15 +515,6 @@ def _render_traffic_share_chart(research_requests: pd.DataFrame) -> None:
             "cum_requests_pct": "Share of research API traffic (%)",
         },
     )
-    fig_pareto.add_trace(
-        go.Scatter(
-            x=pareto["cum_users_pct"],
-            y=pareto["cum_users_pct"],
-            mode="lines",
-            name="linear baseline",
-            line=dict(color="#FFFFFF", width=4, dash="dot"),
-        )
-    )
     fig_pareto.add_vline(x=5.0, line_dash="dash", line_color="#4C78A8", line_width=3)
     fig_pareto.add_hline(y=y_at_5, line_dash="dash", line_color="gray")
     fig_pareto.update_traces(
@@ -532,15 +523,8 @@ def _render_traffic_share_chart(research_requests: pd.DataFrame) -> None:
         fill="tozeroy",
         fillcolor="rgba(0,87,217,0.30)",
     )
-    fig_pareto.update_traces(
-        selector=dict(name="linear baseline"),
-        line=dict(color="#FFFFFF", width=4, dash="dot"),
-        fill=None,
-    )
     if len(fig_pareto.data) >= 1:
         fig_pareto.data[0].hovertemplate = "users: %{x:.2f}%<br>requests: %{y:.2f}%<extra></extra>"
-    if len(fig_pareto.data) >= 2:
-        fig_pareto.data[1].hovertemplate = "users: %{x:.2f}%<br>linear: %{y:.2f}%<extra></extra>"
     fig_pareto.update_layout(
         template="simple_white",
         title_font=dict(size=20),
