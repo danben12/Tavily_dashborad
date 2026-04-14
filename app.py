@@ -1007,7 +1007,7 @@ def _render_technical_inefficiency_by_wait_time_chart(inefficiency_long: pd.Data
         barmode="group",
         title="technical inefficiency by wait time",
         labels={"duration_group": "duration group", "value": "average", "metric": ""},
-        color_discrete_map={"median LLM calls": "#E45756", "median sources found": "#72B7B2"},
+        color_discrete_map={"median LLM calls": "#E45756", "median sources found": "#4C78A8"},
         text=inefficiency_long["value"].map(lambda v: f"{v:.2f}"),
     )
     fig_ineff.update_traces(
