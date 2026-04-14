@@ -672,7 +672,7 @@ def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame) -> 
         legend_title_text="",
     )
     fig_stacked.update_traces(
-        hovertemplate="Model: %{x}<br>User type: %{fullData.name}<br>Total cost: $%{y:,.2f}<extra></extra>"
+        hovertemplate="Model: %{x}<br>User type: %{fullData.name}<br>Total cost: $%{y:,.0f}<extra></extra>"
     )
     fig_stacked.update_yaxes(tickprefix="$")
     st.plotly_chart(fig_stacked, use_container_width=True)
