@@ -1530,6 +1530,10 @@ def render_infrastructure_and_cost_analysis(
     )
     weekend_traffic_drop_pct = None
     weekend_total_cost_drop_pct = None
+    weekend_req_mean = None
+    weekday_req_mean = None
+    weekend_total_cost_mean = None
+    weekday_total_cost_mean = None
     if {"hour", "request_count"}.issubset(hourly_l.columns) and {"hour", "total_hourly_cost"}.issubset(
         infra_l.columns
     ):
@@ -1571,19 +1575,72 @@ def render_infrastructure_and_cost_analysis(
                         1.0 - (weekend_total_cost_mean / weekday_total_cost_mean)
                     )
     if not heatmap_long.empty:
-        if weekend_traffic_drop_pct is not None and weekend_total_cost_drop_pct is not None:
-            st.caption(
-                f"This heatmap shows average hourly infrastructure cost by weekday and hour. "
-                f"There is a cyclical pattern in infrastructure cost, with nights and weekends tending to be lower. "
-                f"On weekends, average hourly traffic drops by {weekend_traffic_drop_pct:.1f}%, "
-                f"while average hourly total cost declines by only {weekend_total_cost_drop_pct:.1f}%."
-            )
-        else:
-            st.caption(
-                f"This heatmap shows average hourly infrastructure cost by weekday and hour. "
-                "There is a cyclical pattern in infrastructure cost, showing that nights and weekends "
-                "tend to have lower mean infrastructure costs."
-            )
+        st.caption(
+            f"This heatmap shows average hourly infrastructure cost by weekday and hour. "
+            "There is a cyclical pattern in infrastructure cost, showing that nights and weekends "
+            "tend to have lower mean infrastructure costs."
+        )
+
+    if (
+        weekend_req_mean is not None
+        and weekday_req_mean is not None
+        and weekend_total_cost_mean is not None
+        and weekday_total_cost_mean is not None
+        and weekday_req_mean > 0
+        and weekday_total_cost_mean > 0
+    ):
+        comparison_index = pd.DataFrame(
+            {
+                "metric": [
+                    "Average hourly traffic",
+                    "Average hourly traffic",
+                    "Average hourly total cost",
+                    "Average hourly total cost",
+                ],
+                "day_type": ["Weekday", "Weekend", "Weekday", "Weekend"],
+                "index_value": [
+                    100.0,
+                    100.0 * weekend_req_mean / weekday_req_mean,
+                    100.0,
+                    100.0 * weekend_total_cost_mean / weekday_total_cost_mean,
+                ],
+            }
+        )
+        fig_weekend_compare = px.bar(
+            comparison_index,
+            x="metric",
+            y="index_value",
+            color="day_type",
+            barmode="group",
+            title="Weekend vs weekday comparison (weekday baseline = 100)",
+            labels={
+                "metric": "Metric",
+                "index_value": "Index (weekday = 100)",
+                "day_type": "Day type",
+            },
+            color_discrete_map={"Weekday": "#4C78A8", "Weekend": "#E45756"},
+            text=comparison_index["index_value"].map(lambda v: f"{v:.1f}"),
+        )
+        fig_weekend_compare.update_traces(
+            textposition="outside",
+            cliponaxis=False,
+            hovertemplate="Metric: %{x}<br>Day type: %{fullData.name}<br>Index: %{y:.1f}<extra></extra>",
+        )
+        fig_weekend_compare.update_layout(
+            template="simple_white",
+            title_font=dict(size=20),
+            xaxis_title_font=dict(size=14),
+            yaxis_title_font=dict(size=14),
+            font=dict(size=13),
+            legend_title_text="",
+            margin=dict(t=60, b=40, l=30, r=30),
+        )
+        st.plotly_chart(fig_weekend_compare, use_container_width=True)
+        st.caption(
+            f"This chart compares weekends to weekdays with weekdays indexed to 100. "
+            f"Average hourly traffic drops by {weekend_traffic_drop_pct:.1f}% on weekends, "
+            f"while average hourly total cost drops by only {weekend_total_cost_drop_pct:.1f}%."
+        )
 
     hourly_activity = _lowercase_columns(hourly_usage).copy()
     if {"hour", "request_type", "request_count"}.issubset(hourly_activity.columns):
