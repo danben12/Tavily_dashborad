@@ -476,7 +476,7 @@ def _prepare_cancellation_chart_data(
 
     cancelled_only = rr.loc[rr["is_cancelled"]].copy()
     cancelled_only["billing_status"] = cancelled_only["credits_used"].fillna(0).apply(
-        lambda x: "unbilled (0 credits)" if x == 0 else "billed (>0 credits)"
+        lambda x: "Unbilled (0 credits)" if x == 0 else "Billed (>0 credits)"
     )
     billing_dist = (
         cancelled_only.groupby("billing_status", as_index=False)
@@ -1019,7 +1019,7 @@ def _render_cancelled_request_billing_status_chart(billing_dist: pd.DataFrame) -
         hole=0.5,
         title="Billing status of cancelled requests",
         color="billing_status",
-        color_discrete_map={"unbilled (0 credits)": "#E45756", "billed (>0 credits)": "#4C78A8"},
+        color_discrete_map={"Unbilled (0 credits)": "#E45756", "Billed (>0 credits)": "#4C78A8"},
     )
     fig_billing.update_traces(
         hovertemplate="%{label}<br>Requests: %{value:,.0f}<br>Share: %{percent:.2%}<extra></extra>"
