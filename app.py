@@ -1753,13 +1753,15 @@ def render_infrastructure_and_cost_analysis(
                 )["infra_eks_research_cluster"].sum()
             )
         caption_text = (
-            f"This chart shows how often the Research API cluster is active across all measured hours. "
+            f"This chart shows the share of hours with and without Research API requests. "
             f"{with_activity:,.0f} hours ({with_activity_pct:.1f}%) had Research API traffic, while "
-            f"{without_activity:,.0f} hours ({without_activity_pct:.1f}%) had no Research API traffic."
+            f"{without_activity:,.0f} hours ({without_activity_pct:.1f}%) had none. "
+            "Cross-checking these inactive hours against Research infrastructure cost indicates the cluster "
+            "remained running during zero-demand periods."
         )
         if zero_traffic_burn is not None:
             caption_text += (
-                f" Yet the cluster continued running at full capacity, burning an estimated "
+                f" This implies an estimated "
                 f"${zero_traffic_burn:,.0f} on zero-traffic hours."
             )
         st.caption(caption_text)
