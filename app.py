@@ -646,7 +646,7 @@ def render_product_analysis_and_cost(
                 no_return_df,
                 x="first_request_label_display",
                 y="pct_single_row",
-                title="<b>Abandonment rate by platform features.</b>",
+                title="<b>Abandonment rate by platform features</b>",
                 labels={
                     "first_request_label_display": "first platform feature",
                     "pct_single_row": "Abandonment rate (%)",
@@ -699,7 +699,7 @@ def render_product_analysis_and_cost(
                     pareto,
                     x="cum_users_pct",
                     y="cum_requests_pct",
-                    title="<b>User concentration in product traffic.</b>",
+                    title="<b>User concentration in product traffic</b>",
                     labels={
                         "cum_users_pct": "Share of research API users (%)",
                         "cum_requests_pct": "Share of research API traffic (%)",
