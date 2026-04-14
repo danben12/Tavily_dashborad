@@ -1575,8 +1575,8 @@ def render_infrastructure_and_cost_analysis(
             cliponaxis=False,
             hovertemplate=(
                 "Activity status: %{x}<br>"
-                "Share of all hours: %{y:.1f}%<br>"
-                "Hours count: %{customdata[0]:,.0f}<extra></extra>"
+                "Hours count: %{customdata[0]:,.0f}<br>"
+                "Share of all hours: %{y:.1f}%<extra></extra>"
             ),
         )
         fig_activity.update_layout(
