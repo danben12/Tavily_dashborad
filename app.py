@@ -529,15 +529,6 @@ def _prepare_finops_data(
 # -----------------------------------------------------
 # product analysis rendering helpers (dashboard order)
 # -----------------------------------------------------
-FIRST_REQUEST_TYPE_COLORS = {
-    "query": "#4C78A8",
-    "research": "#F58518",
-    "extract": "#54A24B",
-    "crawl": "#E45756",
-    "map": "#B279A2",
-}
-
-
 def _render_product_top_metrics(acquisition_pct: float, total_request_cost: float) -> None:
     st.markdown(
         """
@@ -893,22 +884,21 @@ def render_product_analysis_and_cost(
 # --------------------------------------------
 # infrastructure and cost analysis page render
 # --------------------------------------------
-COOLWARM_SCALE = [
-    [0.0, "#3B4CC0"],
-    [0.2, "#6F92F3"],
-    [0.4, "#AFC7FD"],
-    [0.5, "#DDDCDC"],
-    [0.6, "#F7B89C"],
-    [0.8, "#E7745B"],
-    [1.0, "#B40426"],
-]
-
-
 def render_infrastructure_and_cost_analysis(
     infrastructure_costs: pd.DataFrame,
     hourly_usage: pd.DataFrame,
     research_requests: pd.DataFrame,
 ) -> None:
+    coolwarm_scale = [
+        [0.0, "#3B4CC0"],
+        [0.2, "#6F92F3"],
+        [0.4, "#AFC7FD"],
+        [0.5, "#DDDCDC"],
+        [0.6, "#F7B89C"],
+        [0.8, "#E7745B"],
+        [1.0, "#B40426"],
+    ]
+
     st.header("part 2: infrastructure & finops - the AI illusion")
 
     prepared = _prepare_finops_data(infrastructure_costs, hourly_usage, research_requests)
@@ -1040,7 +1030,7 @@ def render_infrastructure_and_cost_analysis(
         heatmap_pivot,
         labels=dict(x="hour of day", y="day of week", color="mean infra cost ($)"),
         title="<b>mean infrastructure cost by day of week and hour</b>",
-        color_continuous_scale=COOLWARM_SCALE,
+        color_continuous_scale=coolwarm_scale,
         aspect="auto",
     )
     fig_heatmap.update_traces(
