@@ -539,10 +539,13 @@ def _render_product_top_metrics(
         safe_help = html.escape(help_text)
         st.markdown(
             f"""
-            <div title="{safe_help}" style="
+            <div style="
                 padding: 4px 2px;
             ">
-                <div style="font-size: 14px; color: #FAFAFA; margin-bottom: 8px;">{safe_title}</div>
+                <div style="font-size: 14px; color: #FAFAFA; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                    <span>{safe_title}</span>
+                    <span title="{safe_help}" style="cursor: help; color: #A7A7A7; font-size: 12px; line-height: 1;">&#9432;</span>
+                </div>
                 <div style="font-size: 36px; line-height: 1.1; color: {value_color};">{safe_value}</div>
             </div>
             """,
