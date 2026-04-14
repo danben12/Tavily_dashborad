@@ -10,22 +10,6 @@ from plotly.subplots import make_subplots
 MODEL_COLORS = {"mini": "#72B7B2", "pro": "#E45756"}
 MODEL_COLORS_UPPER = {"MINI": "#72B7B2", "PRO": "#E45756"}
 USER_COLORS = {"Free tier": "#F58518", "Paying users": "#4C78A8"}
-COOLWARM_SCALE = [
-    [0.0, "#3B4CC0"],
-    [0.2, "#6F92F3"],
-    [0.4, "#AFC7FD"],
-    [0.5, "#DDDCDC"],
-    [0.6, "#F7B89C"],
-    [0.8, "#E7745B"],
-    [1.0, "#B40426"],
-]
-FIRST_REQUEST_TYPE_COLORS = {
-    "query": "#4C78A8",
-    "research": "#F58518",
-    "extract": "#54A24B",
-    "crawl": "#E45756",
-    "map": "#B279A2",
-}
 
 
 # -------------------------
@@ -545,6 +529,15 @@ def _prepare_finops_data(
 # -----------------------------------------------------
 # product analysis rendering helpers (dashboard order)
 # -----------------------------------------------------
+FIRST_REQUEST_TYPE_COLORS = {
+    "query": "#4C78A8",
+    "research": "#F58518",
+    "extract": "#54A24B",
+    "crawl": "#E45756",
+    "map": "#B279A2",
+}
+
+
 def _render_product_top_metrics(acquisition_pct: float, total_request_cost: float) -> None:
     st.markdown(
         """
@@ -900,6 +893,17 @@ def render_product_analysis_and_cost(
 # --------------------------------------------
 # infrastructure and cost analysis page render
 # --------------------------------------------
+COOLWARM_SCALE = [
+    [0.0, "#3B4CC0"],
+    [0.2, "#6F92F3"],
+    [0.4, "#AFC7FD"],
+    [0.5, "#DDDCDC"],
+    [0.6, "#F7B89C"],
+    [0.8, "#E7745B"],
+    [1.0, "#B40426"],
+]
+
+
 def render_infrastructure_and_cost_analysis(
     infrastructure_costs: pd.DataFrame,
     hourly_usage: pd.DataFrame,
