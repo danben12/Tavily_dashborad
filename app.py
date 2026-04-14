@@ -1495,84 +1495,28 @@ def render_infrastructure_and_cost_analysis(
         .reindex(day_order)
         .reindex(columns=list(range(24)))
     )
-    hourly_heat = _lowercase_columns(hourly_usage).copy()
-    traffic_heatmap_pivot = pd.DataFrame(index=day_order, columns=list(range(24)))
-    if {"hour", "request_count"}.issubset(hourly_heat.columns):
-        hourly_heat["hour"] = pd.to_datetime(hourly_heat["hour"], errors="coerce", utc=True)
-        hourly_heat["request_count"] = pd.to_numeric(hourly_heat["request_count"], errors="coerce").fillna(0.0)
-        hourly_heat = hourly_heat.dropna(subset=["hour"]).copy()
-        hourly_heat["day_of_week"] = hourly_heat["hour"].dt.day_name()
-        hourly_heat["hour_of_day"] = hourly_heat["hour"].dt.hour
-        traffic_heat = (
-            hourly_heat.groupby(["day_of_week", "hour_of_day"], as_index=False)["request_count"]
-            .median()
-            .rename(columns={"request_count": "median_traffic"})
+    fig_heatmap_cost = px.imshow(
+        cost_heatmap_pivot,
+        labels=dict(x="Hour of day", y="Day of week", color="Mean infra cost ($)"),
+        title="Mean infrastructure cost by day of week and hour",
+        color_continuous_scale=coolwarm_scale,
+        aspect="auto",
+    )
+    fig_heatmap_cost.update_traces(
+        hovertemplate=(
+            "Day: %{y}<br>"
+            "Hour: %{x}:00<br>"
+            "Mean infra cost: $%{z:,.2f}<extra></extra>"
         )
-        traffic_heat["day_of_week"] = pd.Categorical(
-            traffic_heat["day_of_week"], categories=day_order, ordered=True
-        )
-        traffic_heat["hour_of_day"] = pd.to_numeric(
-            traffic_heat["hour_of_day"], errors="coerce"
-        ).astype("Int64")
-        traffic_heatmap_pivot = (
-            traffic_heat.pivot_table(
-                index="day_of_week",
-                columns="hour_of_day",
-                values="median_traffic",
-                aggfunc="mean",
-            )
-            .reindex(day_order)
-            .reindex(columns=list(range(24)))
-        )
-
-    heat_col1, heat_col2 = st.columns(2)
-    with heat_col1:
-        fig_heatmap_cost = px.imshow(
-            cost_heatmap_pivot,
-            labels=dict(x="Hour of day", y="Day of week", color="Mean infra cost ($)"),
-            title="Mean infrastructure cost by day of week and hour",
-            color_continuous_scale=coolwarm_scale,
-            aspect="auto",
-        )
-        fig_heatmap_cost.update_traces(
-            hovertemplate=(
-                "Day: %{y}<br>"
-                "Hour: %{x}:00<br>"
-                "Mean infra cost: $%{z:,.2f}<extra></extra>"
-            )
-        )
-        fig_heatmap_cost.update_layout(
-            template="simple_white",
-            title_font=dict(size=20),
-            xaxis_title_font=dict(size=14),
-            yaxis_title_font=dict(size=14),
-            font=dict(size=13),
-        )
-        st.plotly_chart(fig_heatmap_cost, use_container_width=True)
-
-    with heat_col2:
-        fig_heatmap_traffic = px.imshow(
-            traffic_heatmap_pivot,
-            labels=dict(x="Hour of day", y="Day of week", color="Median traffic (requests)"),
-            title="Median traffic by day of week and hour",
-            color_continuous_scale=coolwarm_scale,
-            aspect="auto",
-        )
-        fig_heatmap_traffic.update_traces(
-            hovertemplate=(
-                "Day: %{y}<br>"
-                "Hour: %{x}:00<br>"
-                "Median traffic: %{z:,.2f}<extra></extra>"
-            )
-        )
-        fig_heatmap_traffic.update_layout(
-            template="simple_white",
-            title_font=dict(size=20),
-            xaxis_title_font=dict(size=14),
-            yaxis_title_font=dict(size=14),
-            font=dict(size=13),
-        )
-        st.plotly_chart(fig_heatmap_traffic, use_container_width=True)
+    )
+    fig_heatmap_cost.update_layout(
+        template="simple_white",
+        title_font=dict(size=20),
+        xaxis_title_font=dict(size=14),
+        yaxis_title_font=dict(size=14),
+        font=dict(size=13),
+    )
+    st.plotly_chart(fig_heatmap_cost, use_container_width=True)
 
     hourly_activity = _lowercase_columns(hourly_usage).copy()
     if {"hour", "request_type", "request_count"}.issubset(hourly_activity.columns):
