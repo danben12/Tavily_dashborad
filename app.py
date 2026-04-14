@@ -1075,7 +1075,7 @@ def _render_cancelled_request_billing_status_chart(billing_dist: pd.DataFrame) -
         "This chart shows how cancelled requests are split by billing outcome. "
         f"Unbilled cancellations account for about {unbilled_pct:.1f}% ({unbilled_count:,} requests), "
         f"while billed cancellations account for about {billed_pct:.1f}% ({billed_count:,} requests). "
-        "The distribution highlights that most cancellations currently generate no credit recovery."
+        "This means the company is currently paying for most cancelled requests through unbilled credits."
     )
 
 
