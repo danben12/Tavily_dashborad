@@ -933,10 +933,9 @@ def _render_cancellation_rate_by_wait_time_chart(wait_effect: pd.DataFrame) -> N
         textposition="outside",
         cliponaxis=False,
         hovertemplate=(
-            "duration: %{x}<br>"
-            "cancel rate: %{y:.2%}<br>"
-            "total requests: %{customdata[0]:,.0f}<br>"
-            "cancelled requests: %{customdata[1]:,.0f}<extra></extra>"
+            "Duration: %{x}<br>"
+            "Total cancelled: %{customdata[1]:,.0f}<br>"
+            "Cancel rate: %{y:.2%}<extra></extra>"
         ),
     )
     fig_wait.update_layout(
