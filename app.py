@@ -1233,24 +1233,6 @@ def render_infrastructure_and_cost_analysis(
     infra_share_pct = (100.0 * finops_metrics["total_hardware_cost"] / total_cost_base) if total_cost_base > 0 else 0.0
     model_share_pct = (100.0 * finops_metrics["total_ai_cost"] / total_cost_base) if total_cost_base > 0 else 0.0
 
-    k1, k3 = st.columns(2)
-    with k1:
-        st.metric(
-            "Total infrastructure cost",
-            _format_k_cost(total_cost_base),
-            help=(
-                "Total measured platform cost across infrastructure and model usage. "
-                f"Within this total, infrastructure is about {infra_share_pct:.1f}% and model costs are about {model_share_pct:.1f}%."
-            ),
-        )
-    with k3:
-        st.metric(
-            "Wasted zero-traffic cost",
-            _format_k_cost(finops_metrics["wasted_zero_traffic_cost"]),
-            delta=f"{finops_metrics['dead_days_count']:,} dead days",
-            help="Estimated infrastructure cost on days with zero recorded request volume.",
-        )
-
     users_l = _lowercase_columns(users).copy()
     hourly_l = _lowercase_columns(hourly_usage).copy()
     infra_l = _lowercase_columns(infrastructure_costs).copy()
@@ -1298,7 +1280,16 @@ def render_infrastructure_and_cost_analysis(
     requests_growth_pct = _growth_pct(req_start, req_end)
     infra_growth_pct = _growth_pct(infra_start, infra_end)
 
-    g1, g2, g3 = st.columns(3)
+    k1, g1, g2, g3 = st.columns(4)
+    with k1:
+        st.metric(
+            "Total infrastructure cost",
+            _format_k_cost(total_cost_base),
+            help=(
+                "Total measured platform cost across infrastructure and model usage. "
+                f"Within this total, infrastructure is about {infra_share_pct:.1f}% and model costs are about {model_share_pct:.1f}%."
+            ),
+        )
     with g1:
         st.metric(
             "New users growth (Nov to Mar)",
