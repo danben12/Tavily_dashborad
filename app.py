@@ -835,14 +835,33 @@ def _render_cancelled_response_time_histogram(research_requests: pd.DataFrame) -
 
     max_response_time = float(cancelled_points["response_time_seconds"].max())
     histogram_end = max(30.0, math.ceil(max_response_time / 30.0) * 30.0)
+    bin_edges = list(range(0, int(histogram_end) + 30, 30))
+    bucket_labels = [f"{start}-{start + 30}" for start in bin_edges[:-1]]
+    cancelled_points = cancelled_points.copy()
+    cancelled_points["duration_bucket"] = pd.cut(
+        cancelled_points["response_time_seconds"],
+        bins=bin_edges,
+        right=False,
+        include_lowest=True,
+        labels=bucket_labels,
+    )
+    bucket_counts = (
+        cancelled_points.groupby("duration_bucket", observed=False)
+        .size()
+        .reindex(bucket_labels, fill_value=0)
+        .reset_index(name="cancelled_requests")
+    )
 
     fig_cancelled_hist = go.Figure(
         data=[
-            go.Histogram(
-                x=cancelled_points["response_time_seconds"],
-                xbins=dict(start=0, end=histogram_end, size=30),
+            go.Bar(
+                x=bucket_counts["duration_bucket"],
+                y=bucket_counts["cancelled_requests"],
                 marker=dict(color="#2D66AD"),
-                hovertemplate="Response time: %{x:.0f} sec<br>Cancelled requests: %{y:,.0f}<extra></extra>",
+                hovertemplate=(
+                    "Response time bucket: %{x} sec<br>"
+                    "Cancelled requests: %{y:,.0f}<extra></extra>"
+                ),
             )
         ]
     )
@@ -856,9 +875,15 @@ def _render_cancelled_response_time_histogram(research_requests: pd.DataFrame) -
         font=dict(size=13),
         margin=dict(t=60, b=40, l=30, r=30),
     )
-    fig_cancelled_hist.update_xaxes(title_text="Response time (seconds)")
+    fig_cancelled_hist.update_xaxes(title_text="Response time bucket (seconds)")
     fig_cancelled_hist.update_yaxes(title_text="Cancelled requests")
-    fig_cancelled_hist.add_vline(x=90.0, line_dash="dash", line_color="#E45756", line_width=2)
+    if "90-120" in bucket_labels:
+        fig_cancelled_hist.add_vline(
+            x=bucket_labels.index("90-120"),
+            line_dash="dash",
+            line_color="#E45756",
+            line_width=2,
+        )
     st.plotly_chart(fig_cancelled_hist, use_container_width=True)
 
 
