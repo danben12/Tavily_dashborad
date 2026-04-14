@@ -154,7 +154,7 @@ def _single_row_no_return_by_first_request(lifecycle: pd.DataFrame) -> pd.DataFr
     return out
 
 
-def _prepare_q2_economics(
+def _prepare_user_and_cost_breakdowns(
     users: pd.DataFrame, research_requests: pd.DataFrame
 ) -> tuple[dict, pd.DataFrame, pd.DataFrame, pd.DataFrame] | None:
     users_l = _lowercase_columns(users)
@@ -277,7 +277,7 @@ def _format_compact_cost(value: float) -> str:
     return f"${value:.1f}"
 
 
-def _prepare_q3_top_metrics(research_requests: pd.DataFrame) -> tuple[float, float] | None:
+def _prepare_cancellation_kpis(research_requests: pd.DataFrame) -> tuple[float, float] | None:
     rr = _lowercase_columns(research_requests)
     required_cols = {
         "status",
@@ -313,7 +313,7 @@ def _prepare_q3_top_metrics(research_requests: pd.DataFrame) -> tuple[float, flo
     return float(cancel_rate_gt90), float(unbilled_cancelled_cost)
 
 
-def _render_q3_cancellation_section(research_requests: pd.DataFrame) -> None:
+def _render_cancellation_analysis_section(research_requests: pd.DataFrame) -> None:
     rr = _lowercase_columns(research_requests)
     required_cols = {
         "status",
@@ -888,7 +888,7 @@ def render_product_analysis_and_cost(
         else 0.0
     )
 
-    q2_data = _prepare_q2_economics(users, research_requests)
+    q2_data = _prepare_user_and_cost_breakdowns(users, research_requests)
     if q2_data is None:
         st.error("Missing required columns for economics analysis.")
         return
@@ -917,7 +917,7 @@ def render_product_analysis_and_cost(
     _render_latency_chart(research_requests)
 
     # 7+) cancellation diagnostics section
-    _render_q3_cancellation_section(research_requests)
+    _render_cancellation_analysis_section(research_requests)
 
 
 def render_infrastructure_and_cost_analysis(
