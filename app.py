@@ -409,7 +409,12 @@ def _prepare_finops_data(
 # -----------------------------------------------------
 # product analysis rendering helpers (dashboard order)
 # -----------------------------------------------------
-def _render_product_top_metrics(acquisition_pct: float, total_request_cost: float) -> None:
+def _render_product_top_metrics(
+    acquisition_pct: float,
+    total_request_cost: float,
+    success_rate_pct: float,
+    cancellation_rate_pct: float,
+) -> None:
     st.markdown(
         """
         <style>
@@ -424,7 +429,7 @@ def _render_product_top_metrics(acquisition_pct: float, total_request_cost: floa
         unsafe_allow_html=True,
     )
 
-    m1, m2 = st.columns(2)
+    m1, m2, m3, m4 = st.columns(4)
     with m1:
         st.metric(
             "Research API users acquisition percentage",
@@ -440,6 +445,18 @@ def _render_product_top_metrics(acquisition_pct: float, total_request_cost: floa
             "Total requests costs",
             _format_compact_cost(total_request_cost),
             help="sum of all research API request costs.",
+        )
+    with m3:
+        st.metric(
+            "Success rate",
+            f"{success_rate_pct:.2f}%",
+            help="share of research API requests with status success.",
+        )
+    with m4:
+        st.metric(
+            "Cancellation rate",
+            f"{cancellation_rate_pct:.2f}%",
+            help="share of research API requests with status cancelled.",
         )
 
 
@@ -950,13 +967,28 @@ def render_product_analysis_and_cost(
 
     rr_cost = _lowercase_columns(research_requests)
     total_request_cost = 0.0
+    success_rate_pct = 0.0
+    cancellation_rate_pct = 0.0
     if "request_cost" in rr_cost.columns:
         total_request_cost = float(
             pd.to_numeric(rr_cost["request_cost"], errors="coerce").fillna(0).sum()
         )
+    if "status" in rr_cost.columns:
+        status_norm = rr_cost["status"].astype(str).str.strip().str.lower()
+        denominator = len(status_norm)
+        if denominator > 0:
+            success_rate_pct = 100.0 * float(status_norm.eq("success").sum()) / denominator
+            cancellation_rate_pct = (
+                100.0 * float(_is_cancelled_status(status_norm).sum()) / denominator
+            )
 
     # 1) top metrics
-    _render_product_top_metrics(acquisition_pct, total_request_cost)
+    _render_product_top_metrics(
+        acquisition_pct,
+        total_request_cost,
+        success_rate_pct,
+        cancellation_rate_pct,
+    )
 
     # 2) first row charts
     col1, col2 = st.columns(2)
