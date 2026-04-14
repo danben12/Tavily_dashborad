@@ -1337,7 +1337,7 @@ def render_infrastructure_and_cost_analysis(
     with col1:
         budget_split = pd.DataFrame(
             {
-                "category": ["hardware & infrastructure", "AI & LLM tokens"],
+                "category": ["Infrastructure costs", "Model costs"],
                 "cost": [
                     finops_metrics["total_hardware_cost"],
                     finops_metrics["total_ai_cost"],
@@ -1349,15 +1349,16 @@ def render_infrastructure_and_cost_analysis(
             names="category",
             values="cost",
             hole=0.5,
-            title="budget split: infrastructure vs model cost",
+            title="Share of infrastructure and model costs out of the total cost",
             color="category",
             color_discrete_map={
-                "hardware & infrastructure": "#4C78A8",
-                "AI & LLM tokens": "#E45756",
+                "Infrastructure costs": "#4C78A8",
+                "Model costs": "#E45756",
             },
         )
         fig_donut.update_traces(
-            hovertemplate="%{label}<br>cost: $%{value:,.2f}<br>share: %{percent:.2%}<extra></extra>"
+            hovertemplate="%{label}<br>Cost: $%{value:,.2f}<br>Share: %{percent:.2%}<extra></extra>",
+            textfont_color="white",
         )
         fig_donut.update_layout(
             template="simple_white",
