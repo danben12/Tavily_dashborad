@@ -1528,8 +1528,8 @@ def render_infrastructure_and_cost_analysis(
         .dropna(subset=["mean_infrastructure_cost"])
         .rename(columns={"day_of_week": "day", "hour_of_day": "hour"})
     )
-    weekend_traffic_drop_pct = None
-    weekend_total_cost_drop_pct = None
+    weekday_vs_weekend_traffic_pct = None
+    weekday_vs_weekend_cost_pct = None
     weekend_req_mean = None
     weekday_req_mean = None
     weekend_total_cost_mean = None
@@ -1568,11 +1568,13 @@ def render_infrastructure_and_cost_analysis(
                 weekday_req_mean = float(weekday_row["total_requests_mean"].iloc[0])
                 weekend_total_cost_mean = float(weekend_row["total_cost_mean"].iloc[0])
                 weekday_total_cost_mean = float(weekday_row["total_cost_mean"].iloc[0])
-                if weekday_req_mean > 0:
-                    weekend_traffic_drop_pct = 100.0 * (1.0 - (weekend_req_mean / weekday_req_mean))
-                if weekday_total_cost_mean > 0:
-                    weekend_total_cost_drop_pct = 100.0 * (
-                        1.0 - (weekend_total_cost_mean / weekday_total_cost_mean)
+                if weekend_req_mean > 0:
+                    weekday_vs_weekend_traffic_pct = (
+                        100.0 * (weekday_req_mean - weekend_req_mean) / weekend_req_mean
+                    )
+                if weekend_total_cost_mean > 0:
+                    weekday_vs_weekend_cost_pct = (
+                        100.0 * (weekday_total_cost_mean - weekend_total_cost_mean) / weekend_total_cost_mean
                     )
     if not heatmap_long.empty:
         st.caption(
@@ -1586,8 +1588,8 @@ def render_infrastructure_and_cost_analysis(
         and weekday_req_mean is not None
         and weekend_total_cost_mean is not None
         and weekday_total_cost_mean is not None
-        and weekday_req_mean > 0
-        and weekday_total_cost_mean > 0
+        and weekend_req_mean > 0
+        and weekend_total_cost_mean > 0
     ):
         comparison_index = pd.DataFrame(
             {
@@ -1599,10 +1601,10 @@ def render_infrastructure_and_cost_analysis(
                 ],
                 "day_type": ["Weekday", "Weekend", "Weekday", "Weekend"],
                 "index_value": [
+                    100.0 * weekday_req_mean / weekend_req_mean,
                     100.0,
-                    100.0 * weekend_req_mean / weekday_req_mean,
+                    100.0 * weekday_total_cost_mean / weekend_total_cost_mean,
                     100.0,
-                    100.0 * weekend_total_cost_mean / weekday_total_cost_mean,
                 ],
             }
         )
@@ -1612,10 +1614,10 @@ def render_infrastructure_and_cost_analysis(
             y="index_value",
             color="day_type",
             barmode="group",
-            title="Weekend vs weekday comparison (weekday baseline = 100)",
+            title="Weekend vs weekday comparison (weekend baseline = 100)",
             labels={
                 "metric": "Metric",
-                "index_value": "Index (weekday = 100)",
+                "index_value": "Index (weekend = 100)",
                 "day_type": "Day type",
             },
             color_discrete_map={"Weekday": "#4C78A8", "Weekend": "#E45756"},
@@ -1637,9 +1639,9 @@ def render_infrastructure_and_cost_analysis(
         )
         st.plotly_chart(fig_weekend_compare, use_container_width=True)
         st.caption(
-            f"This chart compares weekends to weekdays with weekdays indexed to 100. "
-            f"Average hourly traffic drops by {weekend_traffic_drop_pct:.1f}% on weekends, "
-            f"while average hourly total cost drops by only {weekend_total_cost_drop_pct:.1f}%."
+            f"This chart compares weekends to weekdays with weekends indexed to 100. "
+            f"Average hourly weekday traffic is {weekday_vs_weekend_traffic_pct:.1f}% higher than weekend traffic, "
+            f"while average hourly weekday total cost is only {weekday_vs_weekend_cost_pct:.1f}% higher than weekend cost."
         )
 
     hourly_activity = _lowercase_columns(hourly_usage).copy()
