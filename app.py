@@ -602,7 +602,7 @@ def render_product_analysis_and_cost(
     m1, m2 = st.columns(2)
     with m1:
         st.metric(
-            "Research API users acquisition precentage",
+            "Research API users acquisition percentage",
             f"{acquisition_pct:.2f}%",
             help=(
                 "out of 16,324 total users, 12,895 joined on/after Nov 1, 2025. "
@@ -668,7 +668,7 @@ def render_product_analysis_and_cost(
             st.warning("Missing `model` or `response_time_seconds` in research data.")
         else:
             if latency_points.empty:
-                st.warning("No usable Mini/Pro response-time data found.")
+                st.warning("no usable mini/pro response-time data found.")
             else:
                 fig_latency = px.box(
                     latency_points,
@@ -848,7 +848,7 @@ def render_infrastructure_and_cost_analysis(
 
     prepared = _prepare_finops_data(infrastructure_costs, hourly_usage, research_requests)
     if prepared is None:
-        st.error("Missing required fields for Infrastructure & FinOps analysis.")
+        st.error("missing required fields for infrastructure & finops analysis.")
         return
     finops_metrics, daily_agg, monthly_agg, heatmap_data = prepared
 
