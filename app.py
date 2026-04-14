@@ -585,9 +585,17 @@ def _render_user_base_and_request_cost_charts(
             font=dict(size=13),
         )
         fig_avg_cost.update_traces(
-            opacity=0.9,
+            opacity=0.95,
             line=dict(color="black", width=2),
             hovertemplate="model: %{x}<br>request cost: $%{y:,.2f}<extra></extra>"
+        )
+        fig_avg_cost.update_traces(
+            selector=dict(name="MINI"),
+            fillcolor="rgba(114, 183, 178, 0.95)",
+        )
+        fig_avg_cost.update_traces(
+            selector=dict(name="PRO"),
+            fillcolor="rgba(228, 87, 86, 0.95)",
         )
         fig_avg_cost.update_yaxes(tickprefix="$")
         st.plotly_chart(fig_avg_cost, use_container_width=True)
