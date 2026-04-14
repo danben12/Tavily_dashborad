@@ -631,8 +631,8 @@ def render_product_analysis_and_cost(
             label_order = no_return_df["first_request_label_display"].tolist()
             worst_row = no_return_df.loc[no_return_df["pct_single_row"].idxmax()]
             st.caption(
-                "calculation: for each first platform feature, we measure the share of users with only one "
-                "logged usage row after signup. conclusion: "
+                "for each first platform feature, this chart shows the share of users with only one "
+                "logged usage row after signup. "
                 f"{worst_row['first_request_label_display']} shows the highest first-activity abandonment "
                 f"({worst_row['pct_single_row']:.2f}%)."
             )
