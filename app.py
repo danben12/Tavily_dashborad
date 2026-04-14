@@ -1423,11 +1423,7 @@ def render_infrastructure_and_cost_analysis(
         )
         st.caption(
             "This chart shows day-level aggregation with 7-day moving averages for total requests and total daily infrastructure cost on two vertical axes. "
-            f"The two lines move together, indicating a strong positive correlation between demand and cost trends over time (Pearson r = {pearson_r:.2f}). "
-            f"Between Nov 2025 and Mar 2026, new users grew by about X{users_growth_ratio:.2f}, "
-            f"requests grew by about X{requests_growth_ratio:.2f}, "
-            f"while infrastructure cost increased by about X{infra_growth_ratio:.2f}. "
-            "The gap suggests that capacity was provisioned ahead of demand."
+            f"The two lines move together, indicating a strong positive correlation between demand and cost trends over time (Pearson r = {pearson_r:.2f})."
         )
         if not corr_series.empty:
             fig_corr = px.scatter(
