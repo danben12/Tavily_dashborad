@@ -767,7 +767,7 @@ def render_product_analysis_and_cost(
             hole=0.5,
             title="<b>Free tier and paying users share</b>",
             color="user_type_display",
-            color_discrete_map={"Free users": "#F58518", "Paying users": "#4C78A8"},
+            color_discrete_map={"Free users": "#E45756", "Paying users": "#4C78A8"},
         )
         fig_user_dist.update_layout(
             template="simple_white",
