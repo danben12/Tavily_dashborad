@@ -1467,6 +1467,7 @@ def render_infrastructure_and_cost_analysis(
     )
     st.caption(
         "This chart shows day-level aggregation with 7-day moving averages for total requests and total daily infrastructure cost on two vertical axes. "
+        "The left vertical axis shows total requests, and the right vertical axis shows total daily infrastructure cost. "
         f"Using raw daily data (without moving-average smoothing), requests and total daily infrastructure cost show a strong positive correlation (Pearson r = {pearson_r_daily:.2f})."
     )
 
@@ -1497,7 +1498,7 @@ def render_infrastructure_and_cost_analysis(
     )
     fig_heatmap_cost = px.imshow(
         cost_heatmap_pivot,
-        labels=dict(x="Hour of day", y="Day of week", color="Mean infra cost ($)"),
+        labels=dict(x="Hour of day", y="Day of week", color="Mean infrastructure cost ($)"),
         title="Mean infrastructure cost by day of week and hour",
         color_continuous_scale=coolwarm_scale,
         aspect="auto",
@@ -1506,7 +1507,7 @@ def render_infrastructure_and_cost_analysis(
         hovertemplate=(
             "Day: %{y}<br>"
             "Hour: %{x}:00<br>"
-            "Mean infra cost: $%{z:,.2f}<extra></extra>"
+            "Mean infrastructure cost: $%{z:,.2f}<extra></extra>"
         )
     )
     fig_heatmap_cost.update_layout(
@@ -1517,6 +1518,21 @@ def render_infrastructure_and_cost_analysis(
         font=dict(size=13),
     )
     st.plotly_chart(fig_heatmap_cost, use_container_width=True)
+    heatmap_long = (
+        cost_heatmap_pivot.stack(dropna=True)
+        .rename("mean_infrastructure_cost")
+        .reset_index()
+        .rename(columns={"day_of_week": "day", "hour_of_day": "hour"})
+    )
+    if not heatmap_long.empty:
+        peak_row = heatmap_long.loc[heatmap_long["mean_infrastructure_cost"].idxmax()]
+        trough_row = heatmap_long.loc[heatmap_long["mean_infrastructure_cost"].idxmin()]
+        st.caption(
+            f"This heatmap shows average hourly infrastructure cost by weekday and hour. "
+            f"The highest average appears on {peak_row['day']} at {int(peak_row['hour']):02d}:00 "
+            f"({peak_row['mean_infrastructure_cost']:.2f}), while the lowest appears on {trough_row['day']} "
+            f"at {int(trough_row['hour']):02d}:00 ({trough_row['mean_infrastructure_cost']:.2f})."
+        )
 
     hourly_activity = _lowercase_columns(hourly_usage).copy()
     if {"hour", "request_type", "request_count"}.issubset(hourly_activity.columns):
@@ -1589,6 +1605,27 @@ def render_infrastructure_and_cost_analysis(
             margin=dict(t=60, b=40, l=30, r=30),
         )
         st.plotly_chart(fig_activity, use_container_width=True)
+        with_activity = int(
+            activity_counts.loc[
+                activity_counts["activity_status"].eq("Hours with Research API activity"),
+                "hours_count",
+            ].sum()
+        )
+        without_activity = int(
+            activity_counts.loc[
+                activity_counts["activity_status"].eq("Hours without Research API activity"),
+                "hours_count",
+            ].sum()
+        )
+        with_activity_pct = (100.0 * with_activity / total_hours_count) if total_hours_count > 0 else 0.0
+        without_activity_pct = (
+            (100.0 * without_activity / total_hours_count) if total_hours_count > 0 else 0.0
+        )
+        st.caption(
+            f"This chart shows how often the Research API cluster is active across all measured hours. "
+            f"{with_activity:,.0f} hours ({with_activity_pct:.1f}%) had Research API traffic, while "
+            f"{without_activity:,.0f} hours ({without_activity_pct:.1f}%) had no Research API traffic."
+        )
 
 
 def main() -> None:
