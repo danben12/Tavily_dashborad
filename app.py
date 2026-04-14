@@ -1643,7 +1643,7 @@ def render_infrastructure_and_cost_analysis(
             100.0 * weekend_total_cost_mean / weekday_total_cost_mean
         )
         st.caption(
-            "This chart checks the weekend-to-weekday ratio, with weekday used as the baseline. "
+            "This chart checks the weekend-to-weekday ratio. "
             f"Average hourly traffic is {weekend_traffic_drop_pct:.1f}% lower on weekends, "
             f"while average hourly total cost is only {weekend_total_cost_drop_pct:.1f}% lower on weekends."
         )
