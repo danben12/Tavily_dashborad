@@ -1039,7 +1039,7 @@ def _render_technical_inefficiency_by_wait_time_chart(inefficiency_long: pd.Data
         f"When duration is under 90 seconds, median LLM calls are {llm_fast_val:.1f} and median sources found are {sources_fast_val:.1f}. "
         f"For durations at or above 90 seconds, median LLM calls increase to {llm_slow_val:.1f}. "
         f"At the same time, median sources found did not change (remaining around {sources_slow_val:.1f}). "
-        "This pattern indicates higher computation with limited additional source output in slower requests."
+        "This pattern indicates higher computation with no value."
     )
 
 
