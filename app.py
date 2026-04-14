@@ -997,7 +997,7 @@ def _render_technical_inefficiency_by_wait_time_chart(inefficiency_long: pd.Data
     fig_ineff.update_traces(
         textposition="outside",
         cliponaxis=False,
-        hovertemplate="duration: %{x}<br>%{fullData.name}: %{y:.2f}<extra></extra>",
+        hovertemplate="Duration: %{x}<br>%{fullData.name}: %{y:.2f}<extra></extra>",
     )
     fig_ineff.update_layout(
         template="simple_white",
@@ -1022,7 +1022,7 @@ def _render_cancelled_request_billing_status_chart(billing_dist: pd.DataFrame) -
         color_discrete_map={"unbilled (0 credits)": "#E45756", "billed (>0 credits)": "#4C78A8"},
     )
     fig_billing.update_traces(
-        hovertemplate="%{label}<br>requests: %{value:,.0f}<br>share: %{percent:.2%}<extra></extra>"
+        hovertemplate="%{label}<br>Requests: %{value:,.0f}<br>Share: %{percent:.2%}<extra></extra>"
     )
     fig_billing.update_layout(
         template="simple_white",
