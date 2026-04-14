@@ -527,6 +527,20 @@ def _render_product_top_metrics(
     non_streaming_cancelled_requests: int,
     non_streaming_total_requests: int,
 ) -> None:
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stHorizontalBlock"]:nth-of-type(1) [data-testid="stMetricValue"] {
+            color: #7DB7FF !important;
+        }
+        div[data-testid="stHorizontalBlock"]:nth-of-type(2) [data-testid="stMetricValue"] {
+            color: #E45756 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     m1, m2, m3 = st.columns(3)
     with m1:
         st.metric(
