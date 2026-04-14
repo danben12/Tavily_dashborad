@@ -598,7 +598,7 @@ def _render_user_base_chart(user_dist: pd.DataFrame) -> None:
     st.caption(
         "This chart shows the distribution of the user base between free and paying users. "
         f"Paying users represent about {paying_share:.2f}% of total users, "
-        "which helps frame monetization potential across the platform."
+        "which is a very small portion."
     )
 
 
