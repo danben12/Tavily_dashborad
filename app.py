@@ -1239,8 +1239,8 @@ def render_infrastructure_and_cost_analysis(
             "Total infrastructure cost",
             _format_k_cost(total_cost_base),
             help=(
-                f"Infrastructure accounts for about {infra_share_pct:.1f}% of total measured spend, "
-                f"while model costs account for about {model_share_pct:.1f}%."
+                "Total measured platform cost across infrastructure and model usage. "
+                f"Within this total, infrastructure is about {infra_share_pct:.1f}% and model costs are about {model_share_pct:.1f}%."
             ),
         )
     with k3:
