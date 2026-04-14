@@ -751,47 +751,6 @@ def render_product_analysis_and_cost(
                     "showing a small portion of heavy users."
                 )
 
-    latency_points = _prepare_latency_points(research_requests)
-    if latency_points is None:
-        st.warning("Missing `model` or `response_time_seconds` in research data.")
-    else:
-        if latency_points.empty:
-            st.warning("no usable mini/pro response-time data found.")
-        else:
-            fig_latency = px.box(
-                latency_points,
-                x="model",
-                y="response_time_seconds",
-                title="<b>response time distribution by model (mini vs pro)</b>",
-                labels={
-                    "response_time_seconds": "response time (seconds)",
-                    "model": "model",
-                },
-                points=False,
-                color="model",
-                color_discrete_map=MODEL_COLORS,
-            )
-            fig_latency.update_layout(
-                template="simple_white",
-                title_font=dict(size=20),
-                xaxis_title_font=dict(size=14),
-                yaxis_title_font=dict(size=14),
-                font=dict(size=13),
-                legend_title_text="",
-                margin=dict(t=60, b=40, l=30, r=30),
-            )
-            fig_latency.update_traces(
-                hovertemplate=(
-                    "model: %{x}<br>"
-                    "Q1: %{q1:.2f} sec<br>"
-                    "median: %{median:.2f} sec<br>"
-                    "Q3: %{q3:.2f} sec<br>"
-                    "min: %{lowerfence:.2f} sec<br>"
-                    "max: %{upperfence:.2f} sec<extra></extra>"
-                )
-            )
-            st.plotly_chart(fig_latency, use_container_width=True)
-
     col3, col4 = st.columns(2)
 
     with col3:
@@ -839,6 +798,47 @@ def render_product_analysis_and_cost(
         )
         fig_avg_cost.update_yaxes(tickprefix="$")
         st.plotly_chart(fig_avg_cost, use_container_width=True)
+
+    latency_points = _prepare_latency_points(research_requests)
+    if latency_points is None:
+        st.warning("Missing `model` or `response_time_seconds` in research data.")
+    else:
+        if latency_points.empty:
+            st.warning("no usable mini/pro response-time data found.")
+        else:
+            fig_latency = px.box(
+                latency_points,
+                x="model",
+                y="response_time_seconds",
+                title="<b>response time distribution by model (mini vs pro)</b>",
+                labels={
+                    "response_time_seconds": "response time (seconds)",
+                    "model": "model",
+                },
+                points=False,
+                color="model",
+                color_discrete_map=MODEL_COLORS,
+            )
+            fig_latency.update_layout(
+                template="simple_white",
+                title_font=dict(size=20),
+                xaxis_title_font=dict(size=14),
+                yaxis_title_font=dict(size=14),
+                font=dict(size=13),
+                legend_title_text="",
+                margin=dict(t=60, b=40, l=30, r=30),
+            )
+            fig_latency.update_traces(
+                hovertemplate=(
+                    "model: %{x}<br>"
+                    "Q1: %{q1:.2f} sec<br>"
+                    "median: %{median:.2f} sec<br>"
+                    "Q3: %{q3:.2f} sec<br>"
+                    "min: %{lowerfence:.2f} sec<br>"
+                    "max: %{upperfence:.2f} sec<extra></extra>"
+                )
+            )
+            st.plotly_chart(fig_latency, use_container_width=True)
 
     fig_stacked = px.bar(
         cost_by_model_user,
