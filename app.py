@@ -989,8 +989,8 @@ def _render_technical_inefficiency_by_wait_time_chart(inefficiency_long: pd.Data
         y="value",
         color="metric",
         barmode="group",
-        title="technical inefficiency by wait time",
-        labels={"duration_group": "duration group", "value": "average", "metric": ""},
+        title="Technical inefficiency by wait time",
+        labels={"duration_group": "Duration group", "value": "Average", "metric": ""},
         color_discrete_map={"median LLM calls": "#E45756", "median sources found": "#4C78A8"},
         text=inefficiency_long["value"].map(lambda v: f"{v:.2f}"),
     )
@@ -1001,6 +1001,7 @@ def _render_technical_inefficiency_by_wait_time_chart(inefficiency_long: pd.Data
     )
     fig_ineff.update_layout(
         template="simple_white",
+        showlegend=False,
         title_font=dict(size=20),
         xaxis_title_font=dict(size=14),
         yaxis_title_font=dict(size=14),
@@ -1016,7 +1017,7 @@ def _render_cancelled_request_billing_status_chart(billing_dist: pd.DataFrame) -
         names="billing_status",
         values="requests",
         hole=0.5,
-        title="billing status of cancelled requests",
+        title="Billing status of cancelled requests",
         color="billing_status",
         color_discrete_map={"unbilled (0 credits)": "#E45756", "billed (>0 credits)": "#4C78A8"},
     )
