@@ -530,10 +530,11 @@ def _render_product_top_metrics(
     st.markdown(
         """
         <style>
-        div[data-testid="stHorizontalBlock"]:nth-of-type(1) [data-testid="stMetricValue"] {
+        div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div [data-testid="stMetricValue"] {
             color: #7DB7FF !important;
         }
-        div[data-testid="stHorizontalBlock"]:nth-of-type(2) [data-testid="stMetricValue"] {
+        div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div [data-testid="stMetricValue"],
+        div[data-testid="stHorizontalBlock"]:nth-of-type(3) > div [data-testid="stMetricValue"] {
             color: #E45756 !important;
         }
         </style>
