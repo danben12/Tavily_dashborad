@@ -1293,10 +1293,10 @@ def render_infrastructure_and_cost_analysis(
             go.Scatter(
                 x=growth_daily["day"],
                 y=growth_daily["requests_ma7"],
-                name="total requests (7d ma)",
+                name="Total requests (7d ma)",
                 mode="lines+markers",
                 line=dict(color="#4C78A8", width=3),
-                hovertemplate="day: %{x}<br>requests (7d ma): %{y:,.0f}<extra></extra>",
+                hovertemplate="Day: %{x}<br>Requests (7d ma): %{y:,.0f}<extra></extra>",
             ),
             secondary_y=False,
         )
@@ -1304,25 +1304,25 @@ def render_infrastructure_and_cost_analysis(
             go.Scatter(
                 x=growth_daily["day"],
                 y=growth_daily["total_cost_ma7"],
-                name="total cost (7d ma)",
+                name="Total cost (7d ma)",
                 mode="lines+markers",
                 line=dict(color="#E45756", width=3),
-                hovertemplate="day: %{x}<br>total cost (7d ma): $%{y:,.2f}<extra></extra>",
+                hovertemplate="Day: %{x}<br>Total cost (7d ma): $%{y:,.2f}<extra></extra>",
             ),
             secondary_y=True,
         )
         fig_growth.update_layout(
             template="simple_white",
-            title="the growth paradox: requests vs total cost over time",
+            title="The growth paradox: requests vs total cost over time",
             title_font=dict(size=20),
             font=dict(size=13),
             legend_title_text="",
             margin=dict(t=70, b=40, l=30, r=30),
         )
-        fig_growth.update_xaxes(title_text="time")
-        fig_growth.update_yaxes(title_text="total requests", secondary_y=False)
+        fig_growth.update_xaxes(title_text="Time")
+        fig_growth.update_yaxes(title_text="Total requests", secondary_y=False)
         fig_growth.update_yaxes(
-            title_text="total daily cost ($) - infra + model",
+            title_text="Total daily cost ($)",
             tickprefix="$",
             secondary_y=True,
         )
