@@ -569,36 +569,7 @@ def _prepare_finops_data(
     return metrics, daily_agg, monthly_agg, heatmap_data
 
 
-def render_product_analysis_and_cost(
-    users: pd.DataFrame, hourly_usage: pd.DataFrame, research_requests: pd.DataFrame
-) -> None:
-    st.title("Research API product analysis")
-
-    lifecycle, _joined_users_count = _build_hourly_lifecycle(users, hourly_usage)
-    if lifecycle.empty:
-        st.error("Could not build lifecycle table from users and hourly usage.")
-        return
-    research_first = lifecycle["first_source"].eq("research")
-    research_first_count = int(research_first.sum())
-    active_joined_users_count = int(lifecycle["user_id"].nunique())
-    acquisition_pct = (
-        100.0 * research_first_count / active_joined_users_count
-        if active_joined_users_count > 0
-        else 0.0
-    )
-
-    q2_data = _prepare_q2_economics(users, research_requests)
-    if q2_data is None:
-        st.error("Missing required columns for economics analysis.")
-        return
-    q2_metrics, user_dist, request_cost_dist, cost_by_model_user = q2_data
-    rr_cost = _lowercase_columns(research_requests)
-    total_request_cost = 0.0
-    if "request_cost" in rr_cost.columns:
-        total_request_cost = float(
-            pd.to_numeric(rr_cost["request_cost"], errors="coerce").fillna(0).sum()
-        )
-
+def _render_product_top_metrics(acquisition_pct: float, total_request_cost: float) -> None:
     m1, m2 = st.columns(2)
     with m1:
         st.metric(
@@ -617,140 +588,144 @@ def render_product_analysis_and_cost(
             help="sum of all research API request costs.",
         )
 
-    col1, col2 = st.columns(2)
 
-    with col1:
-        no_return_df = _single_row_no_return_by_first_request(lifecycle)
-        if no_return_df.empty:
-            st.warning("Not enough data for single-row usage by first request type.")
-        else:
-            no_return_df = no_return_df.copy()
-            no_return_df["first_request_label_display"] = (
-                no_return_df["first_request_label"].astype(str).str.capitalize()
-            )
-            label_order = no_return_df["first_request_label_display"].tolist()
-            bar_colors = [
-                "#E45756"
-                if label.lower() == "research"
-                else "rgba(173, 216, 230, 0.55)"
-                for label in no_return_df["first_request_label_display"]
-            ]
-            worst_row = no_return_df.loc[no_return_df["pct_single_row"].idxmax()]
-            research_row = no_return_df.loc[
-                no_return_df["first_request_label_display"].str.lower().eq("research")
-            ]
-            research_rate_text = f"{worst_row['pct_single_row']:.2f}%"
-            if not research_row.empty:
-                research_rate_text = f"{research_row.iloc[0]['pct_single_row']:.2f}%"
-            fig_retention = px.bar(
-                no_return_df,
-                x="first_request_label_display",
-                y="pct_single_row",
-                title="<b>Abandonment rate by platform features</b>",
-                labels={
-                    "first_request_label_display": "first platform feature",
-                    "pct_single_row": "Abandonment rate (%)",
-                },
-                text=no_return_df["pct_single_row"].map(lambda x: f"{x:.2f}%"),
-                category_orders={"first_request_label_display": label_order},
-                custom_data=["user_count", "single_row_count"],
-            )
-            fig_retention.update_traces(
-                marker_color=bar_colors,
-                textposition="outside",
-                cliponaxis=False,
-                hovertemplate=(
-                    "%{x}<br>"
-                    "Total users: %{customdata[0]:,.0f}<br>"
-                    "Abandoned users: %{customdata[1]:,.0f}<br>"
-                    "Abandonment rate: %{y:.2f}%<extra></extra>"
-                ),
-            )
-            fig_retention.update_layout(
-                template="simple_white",
-                showlegend=False,
-                title_font=dict(size=20),
-                xaxis_title_font=dict(size=14),
-                yaxis_title_font=dict(size=14),
-                font=dict(size=13),
-                margin=dict(t=60, b=40, l=30, r=30),
-                yaxis=dict(range=[0, 30]),
-            )
-            st.plotly_chart(fig_retention, use_container_width=True)
-            st.caption(
-                "This chart analyzes user retention based on the initial platform interaction. "
-                "It shows the abandonment rate, defined as no subsequent engagement across the platform after first usage, "
-                "segmented by the first feature used. "
-                f"Notably, the Research feature shows an abandonment rate of {research_rate_text}, "
-                "which is significantly higher than other platform features."
-            )
+def _render_abandonment_chart(lifecycle: pd.DataFrame) -> None:
+    no_return_df = _single_row_no_return_by_first_request(lifecycle)
+    if no_return_df.empty:
+        st.warning("Not enough data for single-row usage by first request type.")
+        return
 
-    with col2:
-        rr_cols = _lowercase_columns(research_requests)
-        if "user_id" not in rr_cols.columns:
-            st.warning("Missing `user_id` in research requests for Pareto chart.")
-        else:
-            pareto_data = _prepare_pareto(research_requests)
-            if pareto_data is None:
-                st.warning("No research requests available for Pareto chart.")
-            else:
-                pareto, y_at_5 = pareto_data
-                fig_pareto = px.line(
-                    pareto,
-                    x="cum_users_pct",
-                    y="cum_requests_pct",
-                    title="<b>Traffic share distribution over users share</b>",
-                    labels={
-                        "cum_users_pct": "Share of research API users (%)",
-                        "cum_requests_pct": "Share of research API traffic (%)",
-                    },
-                )
-                fig_pareto.add_trace(
-                    go.Scatter(
-                        x=pareto["cum_users_pct"],
-                        y=pareto["cum_users_pct"],
-                        mode="lines",
-                        name="linear baseline",
-                        line=dict(color="#FF7F0E", width=2, dash="dot"),
-                    )
-                )
-                fig_pareto.add_vline(x=5.0, line_dash="dash", line_color="gray")
-                fig_pareto.add_hline(y=y_at_5, line_dash="dash", line_color="gray")
-                fig_pareto.update_traces(
-                    selector=dict(type="scatter", mode="lines"),
-                    line=dict(color="#0057D9", width=3),
-                    fill="tozeroy",
-                    fillcolor="rgba(0,87,217,0.30)",
-                )
-                fig_pareto.update_traces(
-                    selector=dict(name="linear baseline"),
-                    line=dict(color="#FF7F0E", width=2, dash="dot"),
-                    fill=None,
-                )
-                if len(fig_pareto.data) >= 1:
-                    fig_pareto.data[0].hovertemplate = (
-                        "users: %{x:.2f}%<br>requests: %{y:.2f}%<extra></extra>"
-                    )
-                if len(fig_pareto.data) >= 2:
-                    fig_pareto.data[1].hovertemplate = (
-                        "users: %{x:.2f}%<br>linear: %{y:.2f}%<extra></extra>"
-                    )
-                fig_pareto.update_layout(
-                    template="simple_white",
-                    title_font=dict(size=20),
-                    xaxis_title_font=dict(size=14),
-                    yaxis_title_font=dict(size=14),
-                    font=dict(size=13),
-                    margin=dict(t=60, b=40, l=30, r=30),
-                )
-                st.plotly_chart(fig_pareto, use_container_width=True)
-                st.caption(
-                    "This chart shows how product traffic is distributed across users. "
-                    "It compares cumulative user share to cumulative request share. "
-                    f"For example, the top 5% of users account for about {y_at_5:.2f}% of total traffic, "
-                    "showing a small portion of heavy users."
-                )
+    no_return_df = no_return_df.copy()
+    no_return_df["first_request_label_display"] = (
+        no_return_df["first_request_label"].astype(str).str.capitalize()
+    )
+    label_order = no_return_df["first_request_label_display"].tolist()
+    bar_colors = [
+        "#E45756"
+        if label.lower() == "research"
+        else "rgba(173, 216, 230, 0.55)"
+        for label in no_return_df["first_request_label_display"]
+    ]
+    worst_row = no_return_df.loc[no_return_df["pct_single_row"].idxmax()]
+    research_row = no_return_df.loc[
+        no_return_df["first_request_label_display"].str.lower().eq("research")
+    ]
+    research_rate_text = f"{worst_row['pct_single_row']:.2f}%"
+    if not research_row.empty:
+        research_rate_text = f"{research_row.iloc[0]['pct_single_row']:.2f}%"
 
+    fig_retention = px.bar(
+        no_return_df,
+        x="first_request_label_display",
+        y="pct_single_row",
+        title="<b>Abandonment rate by platform features</b>",
+        labels={
+            "first_request_label_display": "first platform feature",
+            "pct_single_row": "Abandonment rate (%)",
+        },
+        text=no_return_df["pct_single_row"].map(lambda x: f"{x:.2f}%"),
+        category_orders={"first_request_label_display": label_order},
+        custom_data=["user_count", "single_row_count"],
+    )
+    fig_retention.update_traces(
+        marker_color=bar_colors,
+        textposition="outside",
+        cliponaxis=False,
+        hovertemplate=(
+            "%{x}<br>"
+            "Total users: %{customdata[0]:,.0f}<br>"
+            "Abandoned users: %{customdata[1]:,.0f}<br>"
+            "Abandonment rate: %{y:.2f}%<extra></extra>"
+        ),
+    )
+    fig_retention.update_layout(
+        template="simple_white",
+        showlegend=False,
+        title_font=dict(size=20),
+        xaxis_title_font=dict(size=14),
+        yaxis_title_font=dict(size=14),
+        font=dict(size=13),
+        margin=dict(t=60, b=40, l=30, r=30),
+        yaxis=dict(range=[0, 30]),
+    )
+    st.plotly_chart(fig_retention, use_container_width=True)
+    st.caption(
+        "This chart analyzes user retention based on the initial platform interaction. "
+        "It shows the abandonment rate, defined as no subsequent engagement across the platform after first usage, "
+        "segmented by the first feature used. "
+        f"Notably, the Research feature shows an abandonment rate of {research_rate_text}, "
+        "which is significantly higher than other platform features."
+    )
+
+
+def _render_traffic_share_chart(research_requests: pd.DataFrame) -> None:
+    rr_cols = _lowercase_columns(research_requests)
+    if "user_id" not in rr_cols.columns:
+        st.warning("Missing `user_id` in research requests for Pareto chart.")
+        return
+
+    pareto_data = _prepare_pareto(research_requests)
+    if pareto_data is None:
+        st.warning("No research requests available for Pareto chart.")
+        return
+
+    pareto, y_at_5 = pareto_data
+    fig_pareto = px.line(
+        pareto,
+        x="cum_users_pct",
+        y="cum_requests_pct",
+        title="<b>Traffic share distribution over users share</b>",
+        labels={
+            "cum_users_pct": "Share of research API users (%)",
+            "cum_requests_pct": "Share of research API traffic (%)",
+        },
+    )
+    fig_pareto.add_trace(
+        go.Scatter(
+            x=pareto["cum_users_pct"],
+            y=pareto["cum_users_pct"],
+            mode="lines",
+            name="linear baseline",
+            line=dict(color="#FF7F0E", width=2, dash="dot"),
+        )
+    )
+    fig_pareto.add_vline(x=5.0, line_dash="dash", line_color="gray")
+    fig_pareto.add_hline(y=y_at_5, line_dash="dash", line_color="gray")
+    fig_pareto.update_traces(
+        selector=dict(type="scatter", mode="lines"),
+        line=dict(color="#0057D9", width=3),
+        fill="tozeroy",
+        fillcolor="rgba(0,87,217,0.30)",
+    )
+    fig_pareto.update_traces(
+        selector=dict(name="linear baseline"),
+        line=dict(color="#FF7F0E", width=2, dash="dot"),
+        fill=None,
+    )
+    if len(fig_pareto.data) >= 1:
+        fig_pareto.data[0].hovertemplate = "users: %{x:.2f}%<br>requests: %{y:.2f}%<extra></extra>"
+    if len(fig_pareto.data) >= 2:
+        fig_pareto.data[1].hovertemplate = "users: %{x:.2f}%<br>linear: %{y:.2f}%<extra></extra>"
+    fig_pareto.update_layout(
+        template="simple_white",
+        title_font=dict(size=20),
+        xaxis_title_font=dict(size=14),
+        yaxis_title_font=dict(size=14),
+        font=dict(size=13),
+        margin=dict(t=60, b=40, l=30, r=30),
+    )
+    st.plotly_chart(fig_pareto, use_container_width=True)
+    st.caption(
+        "This chart shows how product traffic is distributed across users. "
+        "It compares cumulative user share to cumulative request share. "
+        f"For example, the top 5% of users account for about {y_at_5:.2f}% of total traffic, "
+        "showing a small portion of heavy users."
+    )
+
+
+def _render_user_base_and_request_cost_charts(
+    user_dist: pd.DataFrame, request_cost_dist: pd.DataFrame
+) -> None:
     col3, col4 = st.columns(2)
 
     with col3:
@@ -805,6 +780,8 @@ def render_product_analysis_and_cost(
         fig_avg_cost.update_yaxes(tickprefix="$")
         st.plotly_chart(fig_avg_cost, use_container_width=True)
 
+
+def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame) -> None:
     fig_stacked = px.bar(
         cost_by_model_user,
         x="model",
@@ -833,47 +810,99 @@ def render_product_analysis_and_cost(
     fig_stacked.update_yaxes(tickprefix="$")
     st.plotly_chart(fig_stacked, use_container_width=True)
 
+
+def _render_latency_chart(research_requests: pd.DataFrame) -> None:
     latency_points = _prepare_latency_points(research_requests)
     if latency_points is None:
         st.warning("Missing `model` or `response_time_seconds` in research data.")
-    else:
-        if latency_points.empty:
-            st.warning("no usable mini/pro response-time data found.")
-        else:
-            fig_latency = px.box(
-                latency_points,
-                x="model",
-                y="response_time_seconds",
-                title="<b>response time distribution by model (mini vs pro)</b>",
-                labels={
-                    "response_time_seconds": "response time (seconds)",
-                    "model": "model",
-                },
-                points=False,
-                color="model",
-                color_discrete_map=MODEL_COLORS,
-            )
-            fig_latency.update_layout(
-                template="simple_white",
-                title_font=dict(size=20),
-                xaxis_title_font=dict(size=14),
-                yaxis_title_font=dict(size=14),
-                font=dict(size=13),
-                legend_title_text="",
-                margin=dict(t=60, b=40, l=30, r=30),
-            )
-            fig_latency.update_traces(
-                hovertemplate=(
-                    "model: %{x}<br>"
-                    "Q1: %{q1:.2f} sec<br>"
-                    "median: %{median:.2f} sec<br>"
-                    "Q3: %{q3:.2f} sec<br>"
-                    "min: %{lowerfence:.2f} sec<br>"
-                    "max: %{upperfence:.2f} sec<extra></extra>"
-                )
-            )
-            st.plotly_chart(fig_latency, use_container_width=True)
+        return
+    if latency_points.empty:
+        st.warning("no usable mini/pro response-time data found.")
+        return
 
+    fig_latency = px.box(
+        latency_points,
+        x="model",
+        y="response_time_seconds",
+        title="<b>response time distribution by model (mini vs pro)</b>",
+        labels={
+            "response_time_seconds": "response time (seconds)",
+            "model": "model",
+        },
+        points=False,
+        color="model",
+        color_discrete_map=MODEL_COLORS,
+    )
+    fig_latency.update_layout(
+        template="simple_white",
+        title_font=dict(size=20),
+        xaxis_title_font=dict(size=14),
+        yaxis_title_font=dict(size=14),
+        font=dict(size=13),
+        legend_title_text="",
+        margin=dict(t=60, b=40, l=30, r=30),
+    )
+    fig_latency.update_traces(
+        hovertemplate=(
+            "model: %{x}<br>"
+            "Q1: %{q1:.2f} sec<br>"
+            "median: %{median:.2f} sec<br>"
+            "Q3: %{q3:.2f} sec<br>"
+            "min: %{lowerfence:.2f} sec<br>"
+            "max: %{upperfence:.2f} sec<extra></extra>"
+        )
+    )
+    st.plotly_chart(fig_latency, use_container_width=True)
+
+
+def render_product_analysis_and_cost(
+    users: pd.DataFrame, hourly_usage: pd.DataFrame, research_requests: pd.DataFrame
+) -> None:
+    st.title("Research API product analysis")
+
+    lifecycle, _joined_users_count = _build_hourly_lifecycle(users, hourly_usage)
+    if lifecycle.empty:
+        st.error("Could not build lifecycle table from users and hourly usage.")
+        return
+
+    research_first = lifecycle["first_source"].eq("research")
+    research_first_count = int(research_first.sum())
+    active_joined_users_count = int(lifecycle["user_id"].nunique())
+    acquisition_pct = (
+        100.0 * research_first_count / active_joined_users_count
+        if active_joined_users_count > 0
+        else 0.0
+    )
+
+    q2_data = _prepare_q2_economics(users, research_requests)
+    if q2_data is None:
+        st.error("Missing required columns for economics analysis.")
+        return
+    _q2_metrics, user_dist, request_cost_dist, cost_by_model_user = q2_data
+
+    rr_cost = _lowercase_columns(research_requests)
+    total_request_cost = 0.0
+    if "request_cost" in rr_cost.columns:
+        total_request_cost = float(
+            pd.to_numeric(rr_cost["request_cost"], errors="coerce").fillna(0).sum()
+        )
+
+    # 1) top metrics
+    _render_product_top_metrics(acquisition_pct, total_request_cost)
+
+    # 2) first row charts
+    col1, col2 = st.columns(2)
+    with col1:
+        _render_abandonment_chart(lifecycle)
+    with col2:
+        _render_traffic_share_chart(research_requests)
+
+    # 3-6) remaining charts in dashboard order
+    _render_user_base_and_request_cost_charts(user_dist, request_cost_dist)
+    _render_total_cost_by_model_user_chart(cost_by_model_user)
+    _render_latency_chart(research_requests)
+
+    # 7+) cancellation diagnostics section
     _render_q3_cancellation_section(research_requests)
 
 
