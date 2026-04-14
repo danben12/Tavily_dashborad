@@ -540,6 +540,14 @@ def _render_product_top_metrics(
         div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div:nth-child(3) [data-testid="stMetricValue"] {
             color: #E45756;
         }
+        div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div:nth-child(1) [data-testid="stMetric"],
+        div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div:nth-child(2) [data-testid="stMetric"],
+        div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div:nth-child(3) [data-testid="stMetric"] {
+            background-color: rgba(228, 87, 86, 0.12);
+            border: 1px solid rgba(228, 87, 86, 0.45);
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -584,20 +592,20 @@ def _render_product_top_metrics(
         )
     with m5:
         st.metric(
-            "Success rate",
-            f"{success_rate_pct:.2f}%",
-            help=(
-                "share of research API requests with status success. "
-                f"total success requests: {success_request_count:,}."
-            ),
-        )
-    with m6:
-        st.metric(
             "Streaming cancellation rate",
             f"{streaming_cancellation_rate_pct:.2f}%",
             help=(
                 f"cancelled requests: {streaming_cancelled_requests:,} "
                 f"out of {streaming_total_requests:,} streaming requests."
+            ),
+        )
+    with m6:
+        st.metric(
+            "Success rate",
+            f"{success_rate_pct:.2f}%",
+            help=(
+                "share of research API requests with status success. "
+                f"total success requests: {success_request_count:,}."
             ),
         )
 
