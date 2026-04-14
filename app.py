@@ -1429,6 +1429,43 @@ def render_infrastructure_and_cost_analysis(
             f"while infrastructure cost increased by about X{infra_growth_ratio:.2f}. "
             "The gap suggests that capacity was provisioned ahead of demand."
         )
+        if not corr_series.empty:
+            fig_corr = px.scatter(
+                corr_series,
+                x="requests_ma7",
+                y="total_cost_ma7",
+                title="Requests-cost correlation check",
+                labels={
+                    "requests_ma7": "Requests (7d ma)",
+                    "total_cost_ma7": "Total daily infrastructure cost (7d ma, $)",
+                },
+            )
+            fig_corr.update_layout(
+                template="simple_white",
+                title_font=dict(size=18),
+                xaxis_title_font=dict(size=14),
+                yaxis_title_font=dict(size=14),
+                font=dict(size=12),
+                margin=dict(t=60, b=40, l=30, r=30),
+            )
+            fig_corr.update_traces(
+                marker=dict(color="#4C78A8", size=7, opacity=0.75),
+                selector=dict(mode="markers"),
+                hovertemplate="Requests (7d ma): %{x:,.0f}<br>Total daily infrastructure cost (7d ma): $%{y:,.2f}<extra></extra>",
+            )
+            fig_corr.add_annotation(
+                xref="paper",
+                yref="paper",
+                x=0.02,
+                y=0.98,
+                text=f"Pearson r = {pearson_r:.2f}",
+                showarrow=False,
+                font=dict(size=13, color="#111111"),
+                bgcolor="rgba(255,255,255,0.8)",
+                bordercolor="#D3D3D3",
+                borderwidth=1,
+            )
+            st.plotly_chart(fig_corr, use_container_width=True)
 
     day_order = [
         "Monday",
