@@ -570,6 +570,20 @@ def _prepare_finops_data(
 
 
 def _render_product_top_metrics(acquisition_pct: float, total_request_cost: float) -> None:
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stMetric"]:nth-of-type(1) [data-testid="stMetricValue"] {
+            color: #4C78A8;
+        }
+        div[data-testid="stMetric"]:nth-of-type(2) [data-testid="stMetricValue"] {
+            color: #E45756;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     m1, m2 = st.columns(2)
     with m1:
         st.metric(
