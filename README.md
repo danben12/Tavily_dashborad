@@ -22,5 +22,11 @@ Expected files: `hourly_usage.csv`, `infrastructure_costs.csv`, `research_reques
 
 ## Pages
 
-- **Product Analysis** — placeholder (content cleared)  
-- **Infrastructure & Cost Analysis** — hourly spend by component  
+- **Product Analysis** — acquisition, retention, cost distribution, cancellation behavior  
+- **Infrastructure & Cost Analysis** — cost split, stability, demand-vs-cost trend, weekday/weekend comparison, and Research cluster inactivity cost
+
+## Project files
+
+- `app.py` — main Streamlit dashboard
+- `sandbox.ipynb` — validation/prototyping notebook for dashboard calculations and key displayed metrics
+- `report.md` — markdown version of the submitted analysis report
