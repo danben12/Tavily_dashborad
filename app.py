@@ -741,7 +741,8 @@ def _render_user_base_and_request_cost_charts(
             legend_title_text="",
         )
         fig_user_dist.update_traces(
-            hovertemplate="%{label}: %{value:,.0f}<br>Share: %{percent:.2%}<extra></extra>"
+            hovertemplate="%{label}: %{value:,.0f}<br>Share: %{percent:.2%}<extra></extra>",
+            textfont_color="white",
         )
         st.plotly_chart(fig_user_dist, use_container_width=True)
 
