@@ -632,7 +632,7 @@ def render_product_analysis_and_cost(
             bar_colors = [
                 "#E45756"
                 if label.lower() == "research"
-                else "rgba(76, 120, 168, 0.25)"
+                else "rgba(173, 216, 230, 0.55)"
                 for label in no_return_df["first_request_label_display"]
             ]
             worst_row = no_return_df.loc[no_return_df["pct_single_row"].idxmax()]
@@ -661,9 +661,9 @@ def render_product_analysis_and_cost(
                 cliponaxis=False,
                 hovertemplate=(
                     "%{x}<br>"
-                    "share with 1 row only: %{y:.2f}%<br>"
-                    "users in segment: %{customdata[0]:,.0f}<br>"
-                    "users with 1 row: %{customdata[1]:,.0f}<extra></extra>"
+                    "% of abndonment: %{y:.2f}%<br>"
+                    "Total users: %{customdata[0]:,.0f}<br>"
+                    "Abandoned users: %{customdata[1]:,.0f}<extra></extra>"
                 ),
             )
             fig_retention.update_layout(
