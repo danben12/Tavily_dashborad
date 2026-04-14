@@ -631,12 +631,12 @@ def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> 
         st.caption(
             "This chart shows the distribution of request costs by model tier. "
             f"By median, PRO requests cost about {pro_vs_mini_ratio:.2f}x more than MINI requests, "
-            "highlighting the gap between unit-cost between models."
+            "highlighting the unit-cost gap between models."
         )
     else:
         st.caption(
             "This chart shows the distribution of request costs by model tier, "
-            "highlighting the gap between unit-cost between models."
+            "highlighting the unit-cost gap between models."
         )
 
 
