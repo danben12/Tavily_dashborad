@@ -972,10 +972,13 @@ def render_product_analysis_and_cost(
     with col4:
         _render_request_cost_distribution_chart(request_cost_dist)
     _render_total_cost_by_model_user_chart(cost_by_model_user, economics_summary)
-    _render_latency_chart(research_requests)
 
-    # 7+) cancellation diagnostics section
-    _render_cancellation_analysis_section(research_requests)
+    # 6-7) render side by side
+    col5, col6 = st.columns(2)
+    with col5:
+        _render_latency_chart(research_requests)
+    with col6:
+        _render_cancellation_analysis_section(research_requests)
 
 
 # --------------------------------------------
