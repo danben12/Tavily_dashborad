@@ -915,6 +915,21 @@ def _render_cancelled_response_time_histogram(research_requests: pd.DataFrame) -
     fig_cancelled_hist.update_xaxes(title_text="Response time (seconds)")
     fig_cancelled_hist.update_yaxes(title_text="Cancelled requests")
     st.plotly_chart(fig_cancelled_hist, use_container_width=True)
+    peak_bucket_row = bucket_counts.loc[bucket_counts["cancelled_requests"].idxmax()]
+    peak_bucket_label = str(peak_bucket_row["duration_bucket"])
+    peak_bucket_count = int(peak_bucket_row["cancelled_requests"])
+    total_cancelled = int(bucket_counts["cancelled_requests"].sum())
+    cancelled_over_90 = int(
+        cancelled_points.loc[cancelled_points["response_time_seconds"] >= 90.0].shape[0]
+    )
+    over_90_pct = (100.0 * cancelled_over_90 / total_cancelled) if total_cancelled > 0 else 0.0
+    st.caption(
+        "This chart shows the distribution of cancelled requests by response-time bins. "
+        f"The highest concentration appears in the {peak_bucket_label} second bin "
+        f"({peak_bucket_count:,} cancelled requests). "
+        f"Overall, about {over_90_pct:.1f}% of cancellations occur after 90 seconds, "
+        "indicating that longer waits are strongly associated with cancellation behavior."
+    )
 
 
 def _render_cancellation_rate_by_wait_time_chart(wait_effect: pd.DataFrame) -> None:
