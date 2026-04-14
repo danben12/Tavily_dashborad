@@ -699,7 +699,7 @@ def render_product_analysis_and_cost(
                     pareto,
                     x="cum_users_pct",
                     y="cum_requests_pct",
-                    title="<b>Traffic share distribution over user share</b>",
+                    title="<b>Traffic share distribution over users share</b>",
                     labels={
                         "cum_users_pct": "Share of research API users (%)",
                         "cum_requests_pct": "Share of research API traffic (%)",
