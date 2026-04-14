@@ -1276,9 +1276,15 @@ def render_infrastructure_and_cost_analysis(
             return 0.0
         return 100.0 * ((end_value - start_value) / start_value)
 
+    def _growth_ratio(start_value: float, end_value: float) -> float:
+        if start_value <= 0:
+            return 0.0
+        return end_value / start_value
+
     users_growth_pct = _growth_pct(user_start, user_end)
     requests_growth_pct = _growth_pct(req_start, req_end)
     infra_growth_pct = _growth_pct(infra_start, infra_end)
+    users_growth_ratio = _growth_ratio(user_start, user_end)
 
     k1, g1, g2, g3 = st.columns(4)
     with k1:
@@ -1293,9 +1299,11 @@ def render_infrastructure_and_cost_analysis(
     with g1:
         st.metric(
             "New users growth (Nov to Mar)",
-            f"{user_end:,.0f}",
-            delta=f"+{users_growth_pct:.1f}%",
-            help=f"Monthly new users grew from {user_start:,.0f} in Nov 2025 to {user_end:,.0f} in Mar 2026.",
+            f"X{users_growth_ratio:.1f}",
+            help=(
+                f"Ratio of monthly new users in Mar 2026 vs Nov 2025 "
+                f"({user_end:,.0f} vs {user_start:,.0f})."
+            ),
         )
     with g2:
         st.metric(
