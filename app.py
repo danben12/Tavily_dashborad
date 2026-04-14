@@ -527,22 +527,7 @@ def _render_product_top_metrics(
     non_streaming_cancelled_requests: int,
     non_streaming_total_requests: int,
 ) -> None:
-    st.markdown(
-        """
-        <style>
-        div[data-testid="stVerticalBlock"]:has(.metrics-row-good) [data-testid="stMetricValue"] {
-            color: #7DB7FF !important;
-        }
-        div[data-testid="stVerticalBlock"]:has(.metrics-row-bad) [data-testid="stMetricValue"] {
-            color: #E45756 !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
     with st.container():
-        st.markdown('<span class="metrics-row-good"></span>', unsafe_allow_html=True)
         m1, m2, m3 = st.columns(3)
         with m1:
             st.metric(
@@ -574,7 +559,6 @@ def _render_product_top_metrics(
             )
 
     with st.container():
-        st.markdown('<span class="metrics-row-bad"></span>', unsafe_allow_html=True)
         m4, m5, m6 = st.columns(3)
         with m4:
             st.metric(
