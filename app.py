@@ -566,11 +566,11 @@ def _render_product_top_metrics(
         )
     with m2:
         st.metric(
-            "Cancellation rate",
-            f"{cancellation_rate_pct:.2f}%",
+            "Success rate",
+            f"{success_rate_pct:.2f}%",
             help=(
-                "share of research API requests with status cancelled. "
-                f"total cancelled requests: {cancelled_request_count:,}."
+                "share of research API requests with status success. "
+                f"total success requests: {success_request_count:,}."
             ),
         )
     with m3:
@@ -592,20 +592,20 @@ def _render_product_top_metrics(
         )
     with m5:
         st.metric(
+            "Cancellation rate",
+            f"{cancellation_rate_pct:.2f}%",
+            help=(
+                "share of research API requests with status cancelled. "
+                f"total cancelled requests: {cancelled_request_count:,}."
+            ),
+        )
+    with m6:
+        st.metric(
             "Streaming cancellation rate",
             f"{streaming_cancellation_rate_pct:.2f}%",
             help=(
                 f"cancelled requests: {streaming_cancelled_requests:,} "
                 f"out of {streaming_total_requests:,} streaming requests."
-            ),
-        )
-    with m6:
-        st.metric(
-            "Success rate",
-            f"{success_rate_pct:.2f}%",
-            help=(
-                "share of research API requests with status success. "
-                f"total success requests: {success_request_count:,}."
             ),
         )
 
