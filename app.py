@@ -978,6 +978,20 @@ def _render_cancellation_rate_by_wait_time_chart(wait_effect: pd.DataFrame) -> N
     )
     fig_wait.update_yaxes(tickformat=".0%")
     st.plotly_chart(fig_wait, use_container_width=True)
+    fast_row = wait_effect.loc[wait_effect["duration_group"].astype(str).eq("< 90 seconds")]
+    slow_row = wait_effect.loc[wait_effect["duration_group"].astype(str).eq(">= 90 seconds")]
+    fast_rate = float(fast_row["cancel_rate"].iloc[0]) if not fast_row.empty else 0.0
+    slow_rate = float(slow_row["cancel_rate"].iloc[0]) if not slow_row.empty else 0.0
+    fast_cancelled = int(fast_row["cancelled_count"].iloc[0]) if not fast_row.empty else 0
+    slow_cancelled = int(slow_row["cancelled_count"].iloc[0]) if not slow_row.empty else 0
+    rate_gap = (slow_rate - fast_rate) * 100.0
+    st.caption(
+        "This chart compares cancellation rates across wait-time duration groups. "
+        f"For requests under 90 seconds, the cancellation rate is {fast_rate * 100.0:.1f}% "
+        f"({fast_cancelled:,} cancelled requests), while for requests at or above 90 seconds "
+        f"it rises to {slow_rate * 100.0:.1f}% ({slow_cancelled:,} cancelled requests). "
+        f"This represents a gap of {rate_gap:.1f} percentage points, highlighting a clear wait-time threshold effect."
+    )
 
 
 def _render_technical_inefficiency_by_wait_time_chart(inefficiency_long: pd.DataFrame) -> None:
