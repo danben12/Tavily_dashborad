@@ -295,6 +295,10 @@ def _format_compact_cost(value: float) -> str:
     return f"${value:.1f}"
 
 
+def _format_k_cost(value: float) -> str:
+    return f"${value / 1_000:.1f}K"
+
+
 # ------------------------------
 # infrastructure data preparation
 # ------------------------------
@@ -1232,7 +1236,7 @@ def render_infrastructure_and_cost_analysis(
     with k1:
         st.metric(
             "Total infrastructure cost",
-            f"${total_cost_base:,.2f}",
+            _format_k_cost(total_cost_base),
             help=(
                 f"Infrastructure accounts for about {infra_share_pct:.1f}% of total measured spend, "
                 f"while model costs account for about {model_share_pct:.1f}%."
@@ -1241,7 +1245,7 @@ def render_infrastructure_and_cost_analysis(
     with k3:
         st.metric(
             "Wasted zero-traffic cost",
-            f"${finops_metrics['wasted_zero_traffic_cost']:,.2f}",
+            _format_k_cost(finops_metrics["wasted_zero_traffic_cost"]),
             delta=f"{finops_metrics['dead_days_count']:,} dead days",
             help="Estimated infrastructure cost on days with zero recorded request volume.",
         )
