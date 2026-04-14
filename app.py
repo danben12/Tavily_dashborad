@@ -1232,7 +1232,7 @@ def render_infrastructure_and_cost_analysis(
     with k1:
         st.metric(
             "Total infrastructure cost",
-            f"${finops_metrics['total_hardware_cost']:,.2f}",
+            f"${total_cost_base:,.2f}",
             help=(
                 f"Infrastructure accounts for about {infra_share_pct:.1f}% of total measured spend, "
                 f"while model costs account for about {model_share_pct:.1f}%."
