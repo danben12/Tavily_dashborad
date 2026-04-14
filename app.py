@@ -611,7 +611,11 @@ def render_product_analysis_and_cost(
             ),
         )
     with m2:
-        st.metric("Total Request Cost", _format_compact_cost(total_request_cost))
+        st.metric(
+            "Total Request Cost",
+            _format_compact_cost(total_request_cost),
+            help="sum of all research API request costs.",
+        )
 
     col1, col2 = st.columns(2)
 
