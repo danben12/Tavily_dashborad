@@ -592,7 +592,6 @@ def render_product_analysis_and_cost(
         st.error("Missing required columns for economics analysis.")
         return
     q2_metrics, user_dist, request_cost_dist, cost_by_model_user = q2_data
-    q3_top_metrics = _prepare_q3_top_metrics(research_requests)
     rr_cost = _lowercase_columns(research_requests)
     total_request_cost = 0.0
     if "request_cost" in rr_cost.columns:
@@ -600,7 +599,7 @@ def render_product_analysis_and_cost(
             pd.to_numeric(rr_cost["request_cost"], errors="coerce").fillna(0).sum()
         )
 
-    m1, m2, m3, m4 = st.columns(4)
+    m1, m2 = st.columns(2)
     with m1:
         st.metric(
             "Research API Acquisition (New Users)",
@@ -612,17 +611,7 @@ def render_product_analysis_and_cost(
             ),
         )
     with m2:
-        st.metric("Total Pro Cost from Free Users", f"${q2_metrics['total_pro_cost_free']:,.2f}")
-    with m3:
-        st.metric("Potential Savings", f"${q2_metrics['potential_savings']:,.2f}")
-    with m4:
         st.metric("Total Request Cost", _format_compact_cost(total_request_cost))
-    if q3_top_metrics is not None:
-        q3_m1, q3_m2 = st.columns(2)
-        with q3_m1:
-            st.metric("Cancel Rate (>90s)", f"{100.0 * q3_top_metrics[0]:.2f}%")
-        with q3_m2:
-            st.metric("Unbilled Cancelled Cost", f"${q3_top_metrics[1]:,.2f}")
 
     col1, col2 = st.columns(2)
 
