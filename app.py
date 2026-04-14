@@ -143,7 +143,7 @@ def _single_row_no_return_by_first_request(lifecycle: pd.DataFrame) -> pd.DataFr
 
 def _prepare_user_and_cost_breakdowns(
     users: pd.DataFrame, research_requests: pd.DataFrame
-) -> tuple[dict, pd.DataFrame, pd.DataFrame, pd.DataFrame] | None:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame] | None:
     users_l = _lowercase_columns(users)
     rr = _lowercase_columns(research_requests)
     required_users = {"user_id", "has_paygo", "plan"}
@@ -178,17 +178,6 @@ def _prepare_user_and_cost_breakdowns(
     merged["is_paying_user"] = merged["is_paying_user"].fillna(False).astype(bool)
     merged["user_type"] = merged["user_type"].fillna("Free Users")
 
-    free_pro = merged[
-        (~merged["is_paying_user"]) & (merged["model"] == "pro")
-    ].copy()
-    total_pro_cost_free = float(free_pro["request_cost"].sum())
-    pro_requests_free_count = int(len(free_pro))
-    mini_avg_cost = float(
-        rr.loc[rr["model"] == "mini", "request_cost"].mean()
-    ) if (rr["model"] == "mini").any() else 0.0
-    hypothetical_mini_cost = float(pro_requests_free_count * mini_avg_cost)
-    potential_savings = float(total_pro_cost_free - hypothetical_mini_cost)
-
     user_dist = (
         users_l.drop_duplicates(subset=["user_id"])
         .groupby("user_type", as_index=False)["user_id"]
@@ -201,12 +190,7 @@ def _prepare_user_and_cost_breakdowns(
         merged.groupby(["model", "user_type"], as_index=False)["request_cost"].sum()
     )
     cost_by_model_user = cost_by_model_user[cost_by_model_user["model"].isin(["mini", "pro"])]
-
-    metrics = {
-        "total_pro_cost_free": total_pro_cost_free,
-        "potential_savings": potential_savings,
-    }
-    return metrics, user_dist, request_cost_dist, cost_by_model_user
+    return user_dist, request_cost_dist, cost_by_model_user
 
 
 def _prepare_latency_points(research_requests: pd.DataFrame) -> pd.DataFrame | None:
@@ -853,7 +837,7 @@ def render_product_analysis_and_cost(
     if q2_data is None:
         st.error("Missing required columns for economics analysis.")
         return
-    _q2_metrics, user_dist, request_cost_dist, cost_by_model_user = q2_data
+    user_dist, request_cost_dist, cost_by_model_user = q2_data
 
     rr_cost = _lowercase_columns(research_requests)
     total_request_cost = 0.0
