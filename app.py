@@ -1224,16 +1224,26 @@ def render_infrastructure_and_cost_analysis(
         return
     finops_metrics, daily_agg, monthly_agg, heatmap_data = prepared
 
-    k1, k2, k3 = st.columns(3)
+    total_cost_base = finops_metrics["total_hardware_cost"] + finops_metrics["total_ai_cost"]
+    infra_share_pct = (100.0 * finops_metrics["total_hardware_cost"] / total_cost_base) if total_cost_base > 0 else 0.0
+    model_share_pct = (100.0 * finops_metrics["total_ai_cost"] / total_cost_base) if total_cost_base > 0 else 0.0
+
+    k1, k3 = st.columns(2)
     with k1:
-        st.metric("total hardware cost", f"${finops_metrics['total_hardware_cost']:,.2f}")
-    with k2:
-        st.metric("total AI/model cost", f"${finops_metrics['total_ai_cost']:,.2f}")
+        st.metric(
+            "Total infrastructure cost",
+            f"${finops_metrics['total_hardware_cost']:,.2f}",
+            help=(
+                f"Infrastructure accounts for about {infra_share_pct:.1f}% of total measured spend, "
+                f"while model costs account for about {model_share_pct:.1f}%."
+            ),
+        )
     with k3:
         st.metric(
-            "wasted zero-traffic cost",
+            "Wasted zero-traffic cost",
             f"${finops_metrics['wasted_zero_traffic_cost']:,.2f}",
             delta=f"{finops_metrics['dead_days_count']:,} dead days",
+            help="Estimated infrastructure cost on days with zero recorded request volume.",
         )
 
     col1, col2 = st.columns(2)
