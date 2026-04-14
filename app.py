@@ -945,23 +945,7 @@ def _render_cancelled_request_billing_status_chart(billing_dist: pd.DataFrame) -
     st.plotly_chart(fig_billing, use_container_width=True)
 
 
-def _render_cancellation_analysis_section(research_requests: pd.DataFrame) -> None:
-    prepared = _prepare_cancellation_chart_data(research_requests)
-    if prepared is None:
-        st.warning("Missing required columns for Q3 cancellation analysis.")
-        return
-    wait_effect, inefficiency_long, billing_dist = prepared
-
-    _render_cancellation_rate_by_wait_time_chart(wait_effect)
-
-    col_left, col_right = st.columns(2)
-    with col_left:
-        _render_technical_inefficiency_by_wait_time_chart(inefficiency_long)
-    with col_right:
-        _render_cancelled_request_billing_status_chart(billing_dist)
-
-
-def render_product_analysis_and_cost(
+def render_product_analysis(
     users: pd.DataFrame, hourly_usage: pd.DataFrame, research_requests: pd.DataFrame
 ) -> None:
     st.title("Research API product analysis")
@@ -1031,7 +1015,17 @@ def render_product_analysis_and_cost(
     with col5:
         _render_latency_chart(research_requests)
     with col6:
-        _render_cancellation_analysis_section(research_requests)
+        prepared = _prepare_cancellation_chart_data(research_requests)
+        if prepared is None:
+            st.warning("Missing required columns for Q3 cancellation analysis.")
+        else:
+            wait_effect, inefficiency_long, billing_dist = prepared
+            _render_cancellation_rate_by_wait_time_chart(wait_effect)
+            col_left, col_right = st.columns(2)
+            with col_left:
+                _render_technical_inefficiency_by_wait_time_chart(inefficiency_long)
+            with col_right:
+                _render_cancelled_request_billing_status_chart(billing_dist)
 
 
 # --------------------------------------------
@@ -1223,7 +1217,7 @@ def main() -> None:
     )
 
     if page == "product analysis":
-        render_product_analysis_and_cost(users, hourly_usage, research_requests)
+        render_product_analysis(users, hourly_usage, research_requests)
     else:
         render_infrastructure_and_cost_analysis(
             infrastructure_costs,
