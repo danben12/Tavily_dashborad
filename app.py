@@ -1384,10 +1384,10 @@ def render_infrastructure_and_cost_analysis(
             go.Scatter(
                 x=growth_daily["day"],
                 y=growth_daily["total_cost_ma7"],
-                name="Total cost (7d ma)",
+                name="Total daily infrastructure cost (7d ma)",
                 mode="lines+markers",
                 line=dict(color="#E45756", width=3),
-                hovertemplate="Day: %{x}<br>Total cost (7d ma): $%{y:,.2f}<extra></extra>",
+                hovertemplate="Day: %{x}<br>Total daily infrastructure cost (7d ma): $%{y:,.2f}<extra></extra>",
             ),
             secondary_y=True,
         )
@@ -1402,13 +1402,13 @@ def render_infrastructure_and_cost_analysis(
         fig_growth.update_xaxes(title_text="Time")
         fig_growth.update_yaxes(title_text="Total requests", secondary_y=False)
         fig_growth.update_yaxes(
-            title_text="Total daily cost ($)",
+            title_text="Total daily infrastructure cost ($)",
             tickprefix="$",
             secondary_y=True,
         )
         st.plotly_chart(fig_growth, use_container_width=True)
         st.caption(
-            "This chart shows day-level aggregation with 7-day moving averages for total requests and total daily cost on two vertical axes. "
+            "This chart shows day-level aggregation with 7-day moving averages for total requests and total daily infrastructure cost on two vertical axes. "
             "The two lines move together, indicating a strong positive correlation between demand and cost trends over time. "
             f"Between Nov 2025 and Mar 2026, new users grew by about X{users_growth_ratio:.2f}, "
             f"requests grew by about X{requests_growth_ratio:.2f}, "
