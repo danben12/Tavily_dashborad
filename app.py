@@ -624,20 +624,31 @@ def render_product_analysis_and_cost(
         if no_return_df.empty:
             st.warning("Not enough data for single-row usage by first request type.")
         else:
-            label_order = no_return_df["first_request_label"].tolist()
+            no_return_df = no_return_df.copy()
+            no_return_df["first_request_label_display"] = (
+                no_return_df["first_request_label"].astype(str).str.capitalize()
+            )
+            label_order = no_return_df["first_request_label_display"].tolist()
+            worst_row = no_return_df.loc[no_return_df["pct_single_row"].idxmax()]
+            st.caption(
+                "calculation: for each first platform feature, we measure the share of users with only one "
+                "logged usage row after signup. conclusion: "
+                f"{worst_row['first_request_label_display']} shows the highest first-activity abandonment "
+                f"({worst_row['pct_single_row']:.2f}%)."
+            )
             fig_retention = px.bar(
                 no_return_df,
-                x="first_request_label",
+                x="first_request_label_display",
                 y="pct_single_row",
-                title="<b>no further logged usage after first action</b>",
+                title="<b>abandonment after first activity by platform features</b>",
                 labels={
-                    "first_request_label": "first request type",
-                    "pct_single_row": "users with only 1 usage row (%)",
+                    "first_request_label_display": "first platform feature",
+                    "pct_single_row": "percentage of users who abandoned the platform (%)",
                 },
                 text=no_return_df["pct_single_row"].map(lambda x: f"{x:.2f}%"),
                 color="first_source",
                 color_discrete_map=FIRST_REQUEST_TYPE_COLORS,
-                category_orders={"first_request_label": label_order},
+                category_orders={"first_request_label_display": label_order},
                 custom_data=["user_count", "single_row_count"],
             )
             fig_retention.update_traces(
