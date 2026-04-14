@@ -2,6 +2,7 @@ import math
 import zipfile
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -1449,6 +1450,22 @@ def render_infrastructure_and_cost_analysis(
                 selector=dict(mode="markers"),
                 hovertemplate="Requests (7d ma): %{x:,.0f}<br>Total daily infrastructure cost (7d ma): $%{y:,.2f}<extra></extra>",
             )
+            if len(corr_series) > 1:
+                x_vals = corr_series["requests_ma7"].to_numpy(dtype=float)
+                y_vals = corr_series["total_cost_ma7"].to_numpy(dtype=float)
+                slope, intercept = np.polyfit(x_vals, y_vals, 1)
+                x_line = np.linspace(x_vals.min(), x_vals.max(), 100)
+                y_line = slope * x_line + intercept
+                fig_corr.add_trace(
+                    go.Scatter(
+                        x=x_line,
+                        y=y_line,
+                        mode="lines",
+                        name="Regression line",
+                        line=dict(color="#E45756", width=3),
+                        hovertemplate="Regression line<extra></extra>",
+                    )
+                )
             fig_corr.add_annotation(
                 xref="paper",
                 yref="paper",
