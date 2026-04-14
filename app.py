@@ -602,7 +602,7 @@ def render_product_analysis_and_cost(
     m1, m2 = st.columns(2)
     with m1:
         st.metric(
-            "Research API Acquisition (New Users)",
+            "Research API users acquisition precentage",
             f"{acquisition_pct:.2f}%",
             help=(
                 "Out of 16,324 total users, 12,895 joined on/after Nov 1, 2025. "
