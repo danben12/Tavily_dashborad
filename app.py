@@ -983,6 +983,31 @@ def _render_cancellation_rate_by_wait_time_chart(wait_effect: pd.DataFrame) -> N
 
 
 def _render_technical_inefficiency_by_wait_time_chart(inefficiency_long: pd.DataFrame) -> None:
+    llm_fast = inefficiency_long.loc[
+        inefficiency_long["duration_group"].astype(str).eq("< 90 seconds")
+        & inefficiency_long["metric"].eq("median LLM calls"),
+        "value",
+    ]
+    llm_slow = inefficiency_long.loc[
+        inefficiency_long["duration_group"].astype(str).eq(">= 90 seconds")
+        & inefficiency_long["metric"].eq("median LLM calls"),
+        "value",
+    ]
+    sources_fast = inefficiency_long.loc[
+        inefficiency_long["duration_group"].astype(str).eq("< 90 seconds")
+        & inefficiency_long["metric"].eq("median sources found"),
+        "value",
+    ]
+    sources_slow = inefficiency_long.loc[
+        inefficiency_long["duration_group"].astype(str).eq(">= 90 seconds")
+        & inefficiency_long["metric"].eq("median sources found"),
+        "value",
+    ]
+    llm_fast_val = float(llm_fast.iloc[0]) if not llm_fast.empty else 0.0
+    llm_slow_val = float(llm_slow.iloc[0]) if not llm_slow.empty else 0.0
+    sources_fast_val = float(sources_fast.iloc[0]) if not sources_fast.empty else 0.0
+    sources_slow_val = float(sources_slow.iloc[0]) if not sources_slow.empty else 0.0
+
     fig_ineff = px.bar(
         inefficiency_long,
         x="duration_group",
@@ -1009,9 +1034,23 @@ def _render_technical_inefficiency_by_wait_time_chart(inefficiency_long: pd.Data
         legend_title_text="",
     )
     st.plotly_chart(fig_ineff, use_container_width=True)
+    st.caption(
+        "This chart compares technical workload across wait-time groups. "
+        f"When duration is under 90 seconds, median LLM calls are {llm_fast_val:.1f} and median sources found are {sources_fast_val:.1f}. "
+        f"For durations at or above 90 seconds, median LLM calls increase to {llm_slow_val:.1f} while median sources found are {sources_slow_val:.1f}. "
+        "This pattern indicates higher computation with limited additional source output in slower requests."
+    )
 
 
 def _render_cancelled_request_billing_status_chart(billing_dist: pd.DataFrame) -> None:
+    total_cancelled = int(billing_dist["requests"].sum())
+    unbilled_row = billing_dist.loc[billing_dist["billing_status"].eq("Unbilled (0 credits)"), "requests"]
+    billed_row = billing_dist.loc[billing_dist["billing_status"].eq("Billed (>0 credits)"), "requests"]
+    unbilled_count = int(unbilled_row.iloc[0]) if not unbilled_row.empty else 0
+    billed_count = int(billed_row.iloc[0]) if not billed_row.empty else 0
+    unbilled_pct = (100.0 * unbilled_count / total_cancelled) if total_cancelled > 0 else 0.0
+    billed_pct = (100.0 * billed_count / total_cancelled) if total_cancelled > 0 else 0.0
+
     fig_billing = px.pie(
         billing_dist,
         names="billing_status",
@@ -1031,6 +1070,12 @@ def _render_cancelled_request_billing_status_chart(billing_dist: pd.DataFrame) -
         legend_title_text="",
     )
     st.plotly_chart(fig_billing, use_container_width=True)
+    st.caption(
+        "This chart shows how cancelled requests are split by billing outcome. "
+        f"Unbilled cancellations account for about {unbilled_pct:.1f}% ({unbilled_count:,} requests), "
+        f"while billed cancellations account for about {billed_pct:.1f}% ({billed_count:,} requests). "
+        "The distribution highlights that most cancellations currently generate no credit recovery."
+    )
 
 
 def render_product_analysis(
