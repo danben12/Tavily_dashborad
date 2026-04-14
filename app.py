@@ -661,9 +661,9 @@ def render_product_analysis_and_cost(
                 cliponaxis=False,
                 hovertemplate=(
                     "%{x}<br>"
-                    "% of abndonment: %{y:.2f}%<br>"
                     "Total users: %{customdata[0]:,.0f}<br>"
                     "Abandoned users: %{customdata[1]:,.0f}<extra></extra>"
+                    "Abandonment rate: %{y:.2f}%"
                 ),
             )
             fig_retention.update_layout(
@@ -679,102 +679,105 @@ def render_product_analysis_and_cost(
             st.plotly_chart(fig_retention, use_container_width=True)
 
     with col2:
-        latency_points = _prepare_latency_points(research_requests)
-        if latency_points is None:
-            st.warning("Missing `model` or `response_time_seconds` in research data.")
+        rr_cols = _lowercase_columns(research_requests)
+        if "user_id" not in rr_cols.columns:
+            st.warning("Missing `user_id` in research requests for Pareto chart.")
         else:
-            if latency_points.empty:
-                st.warning("no usable mini/pro response-time data found.")
+            pareto_data = _prepare_pareto(research_requests)
+            if pareto_data is None:
+                st.warning("No research requests available for Pareto chart.")
             else:
-                fig_latency = px.box(
-                    latency_points,
-                    x="model",
-                    y="response_time_seconds",
-                    title="<b>response time distribution by model (mini vs pro)</b>",
+                pareto, y_at_5 = pareto_data
+                fig_pareto = px.line(
+                    pareto,
+                    x="cum_users_pct",
+                    y="cum_requests_pct",
+                    title="<b>Research API traffic concentration (pareto curve)</b>",
                     labels={
-                        "response_time_seconds": "response time (seconds)",
-                        "model": "model",
+                        "cum_users_pct": "cumulative % of users",
+                        "cum_requests_pct": "cumulative % of total requests",
                     },
-                    points=False,
-                    color="model",
-                    color_discrete_map=MODEL_COLORS,
                 )
-                fig_latency.update_layout(
+                fig_pareto.add_trace(
+                    go.Scatter(
+                        x=pareto["cum_users_pct"],
+                        y=pareto["cum_users_pct"],
+                        mode="lines",
+                        name="linear baseline",
+                        line=dict(color="#FF7F0E", width=2, dash="dot"),
+                    )
+                )
+                fig_pareto.add_vline(x=5.0, line_dash="dash", line_color="gray")
+                fig_pareto.add_hline(y=y_at_5, line_dash="dash", line_color="gray")
+                fig_pareto.update_traces(
+                    selector=dict(type="scatter", mode="lines"),
+                    line=dict(color="#0057D9", width=3),
+                    fill="tozeroy",
+                    fillcolor="rgba(0,87,217,0.30)",
+                )
+                fig_pareto.update_traces(
+                    selector=dict(name="linear baseline"),
+                    line=dict(color="#FF7F0E", width=2, dash="dot"),
+                    fill=None,
+                )
+                if len(fig_pareto.data) >= 1:
+                    fig_pareto.data[0].hovertemplate = (
+                        "users: %{x:.2f}%<br>requests: %{y:.2f}%<extra></extra>"
+                    )
+                if len(fig_pareto.data) >= 2:
+                    fig_pareto.data[1].hovertemplate = (
+                        "users: %{x:.2f}%<br>linear: %{y:.2f}%<extra></extra>"
+                    )
+                fig_pareto.update_layout(
                     template="simple_white",
                     title_font=dict(size=20),
                     xaxis_title_font=dict(size=14),
                     yaxis_title_font=dict(size=14),
                     font=dict(size=13),
-                    legend_title_text="",
                     margin=dict(t=60, b=40, l=30, r=30),
                 )
-                fig_latency.update_traces(
-                    hovertemplate=(
-                        "model: %{x}<br>"
-                        "Q1: %{q1:.2f} sec<br>"
-                        "median: %{median:.2f} sec<br>"
-                        "Q3: %{q3:.2f} sec<br>"
-                        "min: %{lowerfence:.2f} sec<br>"
-                        "max: %{upperfence:.2f} sec<extra></extra>"
-                    )
-                )
-                st.plotly_chart(fig_latency, use_container_width=True)
+                st.plotly_chart(fig_pareto, use_container_width=True)
 
-    # Pareto: concentration of research traffic.
-    rr_cols = _lowercase_columns(research_requests)
-    if "user_id" not in rr_cols.columns:
-        st.warning("Missing `user_id` in research requests for Pareto chart.")
-        return
-    pareto_data = _prepare_pareto(research_requests)
-    if pareto_data is None:
-        st.warning("No research requests available for Pareto chart.")
-        return
-    pareto, y_at_5 = pareto_data
-    fig_pareto = px.line(
-        pareto,
-        x="cum_users_pct",
-        y="cum_requests_pct",
-        title="<b>Research API traffic concentration (pareto curve)</b>",
-        labels={
-            "cum_users_pct": "cumulative % of users",
-            "cum_requests_pct": "cumulative % of total requests",
-        },
-    )
-    fig_pareto.add_trace(
-        go.Scatter(
-            x=pareto["cum_users_pct"],
-            y=pareto["cum_users_pct"],
-            mode="lines",
-            name="linear baseline",
-            line=dict(color="#FF7F0E", width=2, dash="dot"),
-        )
-    )
-    fig_pareto.add_vline(x=5.0, line_dash="dash", line_color="gray")
-    fig_pareto.add_hline(y=y_at_5, line_dash="dash", line_color="gray")
-    fig_pareto.update_traces(
-        selector=dict(type="scatter", mode="lines"),
-        line=dict(color="#0057D9", width=3),
-        fill="tozeroy",
-        fillcolor="rgba(0,87,217,0.30)",
-    )
-    fig_pareto.update_traces(
-        selector=dict(name="linear baseline"),
-        line=dict(color="#FF7F0E", width=2, dash="dot"),
-        fill=None,
-    )
-    if len(fig_pareto.data) >= 1:
-        fig_pareto.data[0].hovertemplate = "users: %{x:.2f}%<br>requests: %{y:.2f}%<extra></extra>"
-    if len(fig_pareto.data) >= 2:
-        fig_pareto.data[1].hovertemplate = "users: %{x:.2f}%<br>linear: %{y:.2f}%<extra></extra>"
-    fig_pareto.update_layout(
-        template="simple_white",
-        title_font=dict(size=20),
-        xaxis_title_font=dict(size=14),
-        yaxis_title_font=dict(size=14),
-        font=dict(size=13),
-        margin=dict(t=60, b=40, l=30, r=30),
-    )
-    st.plotly_chart(fig_pareto, use_container_width=True)
+    latency_points = _prepare_latency_points(research_requests)
+    if latency_points is None:
+        st.warning("Missing `model` or `response_time_seconds` in research data.")
+    else:
+        if latency_points.empty:
+            st.warning("no usable mini/pro response-time data found.")
+        else:
+            fig_latency = px.box(
+                latency_points,
+                x="model",
+                y="response_time_seconds",
+                title="<b>response time distribution by model (mini vs pro)</b>",
+                labels={
+                    "response_time_seconds": "response time (seconds)",
+                    "model": "model",
+                },
+                points=False,
+                color="model",
+                color_discrete_map=MODEL_COLORS,
+            )
+            fig_latency.update_layout(
+                template="simple_white",
+                title_font=dict(size=20),
+                xaxis_title_font=dict(size=14),
+                yaxis_title_font=dict(size=14),
+                font=dict(size=13),
+                legend_title_text="",
+                margin=dict(t=60, b=40, l=30, r=30),
+            )
+            fig_latency.update_traces(
+                hovertemplate=(
+                    "model: %{x}<br>"
+                    "Q1: %{q1:.2f} sec<br>"
+                    "median: %{median:.2f} sec<br>"
+                    "Q3: %{q3:.2f} sec<br>"
+                    "min: %{lowerfence:.2f} sec<br>"
+                    "max: %{upperfence:.2f} sec<extra></extra>"
+                )
+            )
+            st.plotly_chart(fig_latency, use_container_width=True)
 
     col3, col4 = st.columns(2)
 
