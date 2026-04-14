@@ -840,8 +840,8 @@ def _render_latency_chart(research_requests: pd.DataFrame) -> None:
         y="response_time_seconds",
         title="response time distribution by model (mini vs pro)",
         labels={
-            "response_time_seconds": "response time (seconds)",
-            "model": "model",
+            "response_time_seconds": "Response time (seconds)",
+            "model": "Model",
         },
         points=False,
         color="model",
