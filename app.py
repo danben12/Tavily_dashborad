@@ -28,6 +28,9 @@ FIRST_REQUEST_TYPE_COLORS = {
 }
 
 
+# -------------------------
+# data loading and utilities
+# -------------------------
 @st.cache_data
 def load_datasets_from_zip() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Load all required datasets, preferring data.zip."""
@@ -277,42 +280,9 @@ def _format_compact_cost(value: float) -> str:
     return f"${value:.1f}"
 
 
-def _prepare_cancellation_kpis(research_requests: pd.DataFrame) -> tuple[float, float] | None:
-    rr = _lowercase_columns(research_requests)
-    required_cols = {
-        "status",
-        "stream",
-        "response_time_seconds",
-        "credits_used",
-        "request_cost",
-    }
-    if not required_cols.issubset(rr.columns):
-        return None
-
-    rr = rr.copy()
-    rr["response_time_seconds"] = pd.to_numeric(rr["response_time_seconds"], errors="coerce")
-    rr["credits_used"] = pd.to_numeric(rr["credits_used"], errors="coerce")
-    rr["request_cost"] = pd.to_numeric(rr["request_cost"], errors="coerce")
-    rr["is_cancelled"] = _is_cancelled_status(rr["status"])
-    human_ui = rr[_is_true_stream(rr["stream"])].copy()
-    human_ui = human_ui.dropna(subset=["response_time_seconds"])
-    human_ui["duration_group"] = human_ui["response_time_seconds"].apply(
-        lambda x: "< 90 seconds" if x < 90 else ">= 90 seconds"
-    )
-
-    cancel_rate_gt90 = human_ui.loc[
-        human_ui["duration_group"] == ">= 90 seconds", "is_cancelled"
-    ].mean()
-    if pd.isna(cancel_rate_gt90):
-        cancel_rate_gt90 = 0.0
-
-    unbilled_cancelled_cost = rr.loc[
-        rr["is_cancelled"] & (rr["credits_used"].fillna(0).eq(0)),
-        "request_cost",
-    ].sum()
-    return float(cancel_rate_gt90), float(unbilled_cancelled_cost)
-
-
+# ------------------------------------
+# product analysis: cancellation section
+# ------------------------------------
 def _render_cancellation_analysis_section(research_requests: pd.DataFrame) -> None:
     rr = _lowercase_columns(research_requests)
     required_cols = {
@@ -471,6 +441,9 @@ def _render_cancellation_analysis_section(research_requests: pd.DataFrame) -> No
     st.plotly_chart(fig_billing, use_container_width=True)
 
 
+# ------------------------------
+# infrastructure data preparation
+# ------------------------------
 def _prepare_finops_data(
     infrastructure_costs: pd.DataFrame,
     hourly_usage: pd.DataFrame,
@@ -569,6 +542,9 @@ def _prepare_finops_data(
     return metrics, daily_agg, monthly_agg, heatmap_data
 
 
+# -----------------------------------------------------
+# product analysis rendering helpers (dashboard order)
+# -----------------------------------------------------
 def _render_product_top_metrics(acquisition_pct: float, total_request_cost: float) -> None:
     st.markdown(
         """
@@ -920,6 +896,9 @@ def render_product_analysis_and_cost(
     _render_cancellation_analysis_section(research_requests)
 
 
+# --------------------------------------------
+# infrastructure and cost analysis page render
+# --------------------------------------------
 def render_infrastructure_and_cost_analysis(
     infrastructure_costs: pd.DataFrame,
     hourly_usage: pd.DataFrame,
