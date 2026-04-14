@@ -700,9 +700,15 @@ def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame, eco
     fig_stacked.update_yaxes(tickprefix="$")
     st.plotly_chart(fig_stacked, use_container_width=True)
     free_pro_requests_compact = f"{economics_summary['free_pro_request_count'] / 1000:.0f}K"
-    total_pro_cost_free_compact = _format_compact_cost(economics_summary["total_pro_cost_free"])
-    hypothetical_mini_cost_compact = _format_compact_cost(economics_summary["hypothetical_mini_cost"])
-    potential_savings_compact = _format_compact_cost(economics_summary["potential_savings"])
+    total_pro_cost_free_compact = _format_compact_cost(economics_summary["total_pro_cost_free"]).replace(
+        "$", "\\$"
+    )
+    hypothetical_mini_cost_compact = _format_compact_cost(economics_summary["hypothetical_mini_cost"]).replace(
+        "$", "\\$"
+    )
+    potential_savings_compact = _format_compact_cost(economics_summary["potential_savings"]).replace(
+        "$", "\\$"
+    )
     st.caption(
         "Free users currently generate substantial spend on the Pro model. "
         f"They made {free_pro_requests_compact} Pro requests at about "
