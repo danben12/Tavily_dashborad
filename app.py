@@ -155,7 +155,7 @@ def _single_row_no_return_by_first_request(lifecycle: pd.DataFrame) -> pd.DataFr
 
 def _prepare_user_and_cost_breakdowns(
     users: pd.DataFrame, research_requests: pd.DataFrame
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame] | None:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict] | None:
     # Normalize inputs so all downstream column access is stable.
     users_l = _lowercase_columns(users)
     rr = _lowercase_columns(research_requests)
@@ -196,6 +196,17 @@ def _prepare_user_and_cost_breakdowns(
     merged["is_paying_user"] = merged["is_paying_user"].fillna(False).astype(bool)
     merged["user_type"] = merged["user_type"].fillna("Free Users")
 
+    # Calculate free-user Pro usage burden and a Mini-routing counterfactual.
+    free_pro = merged[(~merged["is_paying_user"]) & (merged["model"] == "pro")].copy()
+    free_pro_request_count = int(len(free_pro))
+    total_pro_cost_free = float(free_pro["request_cost"].sum())
+    free_pro_avg_cost = float(free_pro["request_cost"].mean()) if free_pro_request_count > 0 else 0.0
+    mini_avg_cost = float(
+        rr.loc[rr["model"] == "mini", "request_cost"].mean()
+    ) if (rr["model"] == "mini").any() else 0.0
+    hypothetical_mini_cost = float(free_pro_request_count * mini_avg_cost)
+    potential_savings = float(total_pro_cost_free - hypothetical_mini_cost)
+
     # Dataset for chart 3: user base split (free vs paying).
     user_dist = (
         users_l.drop_duplicates(subset=["user_id"])
@@ -211,7 +222,15 @@ def _prepare_user_and_cost_breakdowns(
         merged.groupby(["model", "user_type"], as_index=False)["request_cost"].sum()
     )
     cost_by_model_user = cost_by_model_user[cost_by_model_user["model"].isin(["mini", "pro"])]
-    return user_dist, request_cost_dist, cost_by_model_user
+    economics_summary = {
+        "free_pro_request_count": free_pro_request_count,
+        "total_pro_cost_free": total_pro_cost_free,
+        "free_pro_avg_cost": free_pro_avg_cost,
+        "mini_avg_cost": mini_avg_cost,
+        "hypothetical_mini_cost": hypothetical_mini_cost,
+        "potential_savings": potential_savings,
+    }
+    return user_dist, request_cost_dist, cost_by_model_user, economics_summary
 
 
 def _prepare_pareto(research_requests: pd.DataFrame) -> tuple[pd.DataFrame, float] | None:
@@ -640,7 +659,7 @@ def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> 
         )
 
 
-def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame) -> None:
+def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame, economics_summary: dict) -> None:
     cost_by_model_user_display = cost_by_model_user.copy()
     cost_by_model_user_display["model_display"] = (
         cost_by_model_user_display["model"].astype(str).str.upper()
@@ -680,6 +699,15 @@ def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame) -> 
     )
     fig_stacked.update_yaxes(tickprefix="$")
     st.plotly_chart(fig_stacked, use_container_width=True)
+    st.caption(
+        "Free users currently generate substantial spend on the Pro model. "
+        f"They made {economics_summary['free_pro_request_count']:,} Pro requests at about "
+        f"${economics_summary['free_pro_avg_cost']:,.0f} per request, creating roughly "
+        f"${economics_summary['total_pro_cost_free']:,.2f} in direct cost. "
+        f"If those requests were routed to Mini (about ${economics_summary['mini_avg_cost']:,.0f} per request), "
+        f"cost would be about ${economics_summary['hypothetical_mini_cost']:,.2f}, "
+        f"with potential savings of about ${economics_summary['potential_savings']:,.2f}."
+    )
 
 
 def _render_latency_chart(research_requests: pd.DataFrame) -> None:
@@ -908,7 +936,7 @@ def render_product_analysis_and_cost(
     if q2_data is None:
         st.error("Missing required columns for economics analysis.")
         return
-    user_dist, request_cost_dist, cost_by_model_user = q2_data
+    user_dist, request_cost_dist, cost_by_model_user, economics_summary = q2_data
 
     rr_cost = _lowercase_columns(research_requests)
     total_request_cost = 0.0
@@ -933,7 +961,7 @@ def render_product_analysis_and_cost(
         _render_user_base_chart(user_dist)
     with col4:
         _render_request_cost_distribution_chart(request_cost_dist)
-    _render_total_cost_by_model_user_chart(cost_by_model_user)
+    _render_total_cost_by_model_user_chart(cost_by_model_user, economics_summary)
     _render_latency_chart(research_requests)
 
     # 7+) cancellation diagnostics section
