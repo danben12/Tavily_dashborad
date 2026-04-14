@@ -629,11 +629,17 @@ def render_product_analysis_and_cost(
                 no_return_df["first_request_label"].astype(str).str.capitalize()
             )
             label_order = no_return_df["first_request_label_display"].tolist()
+            bar_colors = [
+                "#E45756"
+                if label.lower() == "research"
+                else "rgba(130, 130, 130, 0.25)"
+                for label in no_return_df["first_request_label_display"]
+            ]
             worst_row = no_return_df.loc[no_return_df["pct_single_row"].idxmax()]
             st.caption(
-                "for each first platform feature, this chart shows the share of users with only one "
-                "logged usage row after signup. "
-                f"{worst_row['first_request_label_display']} shows the highest first-activity abandonment "
+                "for each platform feature, this chart shows the share of users with only one "
+                "usage after signup. "
+                f"{worst_row['first_request_label_display']} shows the highest abandonment rate "
                 f"({worst_row['pct_single_row']:.2f}%)."
             )
             fig_retention = px.bar(
@@ -646,12 +652,11 @@ def render_product_analysis_and_cost(
                     "pct_single_row": "Abandonment rate (%)",
                 },
                 text=no_return_df["pct_single_row"].map(lambda x: f"{x:.2f}%"),
-                color="first_source",
-                color_discrete_map=FIRST_REQUEST_TYPE_COLORS,
                 category_orders={"first_request_label_display": label_order},
                 custom_data=["user_count", "single_row_count"],
             )
             fig_retention.update_traces(
+                marker_color=bar_colors,
                 textposition="outside",
                 cliponaxis=False,
                 hovertemplate=(
