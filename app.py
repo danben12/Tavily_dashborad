@@ -662,8 +662,8 @@ def render_product_analysis_and_cost(
                 hovertemplate=(
                     "%{x}<br>"
                     "Total users: %{customdata[0]:,.0f}<br>"
-                    "Abandoned users: %{customdata[1]:,.0f}<extra></extra>"
-                    "Abandonment rate: %{y:.2f}%"
+                    "Abandoned users: %{customdata[1]:,.0f}<br>"
+                    "Abandonment rate: %{y:.2f}%<extra></extra>"
                 ),
             )
             fig_retention.update_layout(
@@ -699,7 +699,7 @@ def render_product_analysis_and_cost(
                     pareto,
                     x="cum_users_pct",
                     y="cum_requests_pct",
-                    title="<b>Traffic share distribution over users share</b>",
+                    title="<b>Traffic share distribution over user share</b>",
                     labels={
                         "cum_users_pct": "Share of research API users (%)",
                         "cum_requests_pct": "Share of research API traffic (%)",
