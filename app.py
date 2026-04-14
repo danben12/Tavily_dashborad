@@ -1,3 +1,4 @@
+import html
 import math
 import zipfile
 from pathlib import Path
@@ -527,80 +528,104 @@ def _render_product_top_metrics(
     non_streaming_cancelled_requests: int,
     non_streaming_total_requests: int,
 ) -> None:
-    st.markdown(
-        """
-        <style>
-        div[data-testid="stHorizontalBlock"]:nth-of-type(1) [data-testid="stMetricValue"] {
-            color: #7DB7FF !important;
-        }
-        div[data-testid="stHorizontalBlock"]:nth-of-type(2) [data-testid="stMetricValue"] {
-            color: #E45756 !important;
-        }
-        div[data-testid="stHorizontalBlock"]:nth-of-type(2) [data-testid="stMetric"] {
-            background-color: rgba(228, 87, 86, 0.12) !important;
-            border: 1px solid rgba(228, 87, 86, 0.45) !important;
-            border-radius: 8px !important;
-            padding: 10px 12px !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    def _render_metric_card(
+        title: str,
+        value: str,
+        help_text: str,
+        value_color: str,
+        bg_color: str,
+        border_color: str,
+    ) -> None:
+        safe_title = html.escape(title)
+        safe_value = html.escape(value)
+        safe_help = html.escape(help_text)
+        st.markdown(
+            f"""
+            <div title="{safe_help}" style="
+                background-color: {bg_color};
+                border: 1px solid {border_color};
+                border-radius: 8px;
+                padding: 10px 12px;
+            ">
+                <div style="font-size: 14px; color: #FAFAFA; margin-bottom: 8px;">{safe_title}</div>
+                <div style="font-size: 36px; line-height: 1.1; color: {value_color};">{safe_value}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     m1, m2, m3 = st.columns(3)
     with m1:
-        st.metric(
-            "Research API users acquisition percentage",
-            f"{acquisition_pct:.2f}%",
-            help=(
+        _render_metric_card(
+            title="Research API users acquisition percentage",
+            value=f"{acquisition_pct:.2f}%",
+            help_text=(
                 "out of 16,324 total users, 12,895 joined on/after Nov 1, 2025. "
                 "out of them, 12,006 had at least one activity after their join date. "
                 "out of those active new users, 2,270 used the Research API as their first activity."
             ),
+            value_color="#7DB7FF",
+            bg_color="rgba(125, 183, 255, 0.10)",
+            border_color="rgba(125, 183, 255, 0.45)",
         )
     with m2:
-        st.metric(
-            "Success rate",
-            f"{success_rate_pct:.2f}%",
-            help=(
+        _render_metric_card(
+            title="Success rate",
+            value=f"{success_rate_pct:.2f}%",
+            help_text=(
                 "share of research API requests with status success. "
                 f"total success requests: {success_request_count:,}."
             ),
+            value_color="#7DB7FF",
+            bg_color="rgba(125, 183, 255, 0.10)",
+            border_color="rgba(125, 183, 255, 0.45)",
         )
     with m3:
-        st.metric(
-            "Non-streaming cancellation rate",
-            f"{non_streaming_cancellation_rate_pct:.2f}%",
-            help=(
+        _render_metric_card(
+            title="Non-streaming cancellation rate",
+            value=f"{non_streaming_cancellation_rate_pct:.2f}%",
+            help_text=(
                 f"cancelled requests: {non_streaming_cancelled_requests:,} "
                 f"out of {non_streaming_total_requests:,} non-streaming requests."
             ),
+            value_color="#7DB7FF",
+            bg_color="rgba(125, 183, 255, 0.10)",
+            border_color="rgba(125, 183, 255, 0.45)",
         )
 
     m4, m5, m6 = st.columns(3)
     with m4:
-        st.metric(
-            "Total requests costs",
-            _format_compact_cost(total_request_cost),
-            help="sum of all research API request costs.",
+        _render_metric_card(
+            title="Total requests costs",
+            value=_format_compact_cost(total_request_cost),
+            help_text="sum of all research API request costs.",
+            value_color="#E45756",
+            bg_color="rgba(228, 87, 86, 0.12)",
+            border_color="rgba(228, 87, 86, 0.45)",
         )
     with m5:
-        st.metric(
-            "Cancellation rate",
-            f"{cancellation_rate_pct:.2f}%",
-            help=(
+        _render_metric_card(
+            title="Cancellation rate",
+            value=f"{cancellation_rate_pct:.2f}%",
+            help_text=(
                 "share of research API requests with status cancelled. "
                 f"total cancelled requests: {cancelled_request_count:,}."
             ),
+            value_color="#E45756",
+            bg_color="rgba(228, 87, 86, 0.12)",
+            border_color="rgba(228, 87, 86, 0.45)",
         )
     with m6:
-        st.metric(
-            "Streaming cancellation rate",
-            f"{streaming_cancellation_rate_pct:.2f}%",
-            help=(
+        _render_metric_card(
+            title="Streaming cancellation rate",
+            value=f"{streaming_cancellation_rate_pct:.2f}%",
+            help_text=(
                 f"cancelled requests: {streaming_cancelled_requests:,} "
                 f"out of {streaming_total_requests:,} streaming requests."
             ),
+            value_color="#E45756",
+            bg_color="rgba(228, 87, 86, 0.12)",
+            border_color="rgba(228, 87, 86, 0.45)",
         )
 
 
