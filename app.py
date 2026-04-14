@@ -776,7 +776,7 @@ def render_product_analysis_and_cost(
             legend_title_text="",
         )
         fig_user_dist.update_traces(
-            hovertemplate="%{label}: %{value:,.0f}<br>share: %{percent:.2%}<extra></extra>"
+            hovertemplate="%{label}: %{value:,.0f}<br>Share: %{percent:.2%}<extra></extra>"
         )
         st.plotly_chart(fig_user_dist, use_container_width=True)
 
