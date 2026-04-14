@@ -520,85 +520,81 @@ def _render_traffic_share_chart(research_requests: pd.DataFrame) -> None:
     )
 
 
-def _render_user_base_and_request_cost_charts(
-    user_dist: pd.DataFrame, request_cost_dist: pd.DataFrame
-) -> None:
-    col3, col4 = st.columns(2)
+def _render_user_base_chart(user_dist: pd.DataFrame) -> None:
+    user_dist_display = user_dist.copy()
+    user_dist_display["user_type_display"] = (
+        user_dist_display["user_type"]
+        .astype(str)
+        .replace({"Free Users": "Free users", "Paying Users": "Paying users"})
+    )
+    fig_user_dist = px.pie(
+        user_dist_display,
+        values="users",
+        names="user_type_display",
+        hole=0.5,
+        title="<b>Free tier and paying users share</b>",
+        color="user_type_display",
+        color_discrete_map={"Free users": "#E45756", "Paying users": "#4C78A8"},
+    )
+    fig_user_dist.update_layout(
+        template="simple_white",
+        title_font=dict(size=20),
+        font=dict(size=13),
+        legend_title_text="",
+    )
+    fig_user_dist.update_traces(
+        hovertemplate="%{label}: %{value:,.0f}<br>Share: %{percent:.2%}<extra></extra>",
+        textfont_color="white",
+    )
+    st.plotly_chart(fig_user_dist, use_container_width=True)
+    total_users = float(user_dist_display["users"].sum())
+    paying_users = float(
+        user_dist_display.loc[
+            user_dist_display["user_type_display"].eq("Paying users"), "users"
+        ].sum()
+    )
+    paying_share = 100.0 * paying_users / total_users if total_users > 0 else 0.0
+    st.caption(
+        "This chart shows the distribution of the user base between free and paying users. "
+        f"Paying users represent about {paying_share:.2f}% of total users, "
+        "which helps frame monetization potential across the platform."
+    )
 
-    with col3:
-        user_dist_display = user_dist.copy()
-        user_dist_display["user_type_display"] = (
-            user_dist_display["user_type"]
-            .astype(str)
-            .replace({"Free Users": "Free users", "Paying Users": "Paying users"})
-        )
-        fig_user_dist = px.pie(
-            user_dist_display,
-            values="users",
-            names="user_type_display",
-            hole=0.5,
-            title="<b>Free tier and paying users share</b>",
-            color="user_type_display",
-            color_discrete_map={"Free users": "#E45756", "Paying users": "#4C78A8"},
-        )
-        fig_user_dist.update_layout(
-            template="simple_white",
-            title_font=dict(size=20),
-            font=dict(size=13),
-            legend_title_text="",
-        )
-        fig_user_dist.update_traces(
-            hovertemplate="%{label}: %{value:,.0f}<br>Share: %{percent:.2%}<extra></extra>",
-            textfont_color="white",
-        )
-        st.plotly_chart(fig_user_dist, use_container_width=True)
-        total_users = float(user_dist_display["users"].sum())
-        paying_users = float(
-            user_dist_display.loc[
-                user_dist_display["user_type_display"].eq("Paying users"), "users"
-            ].sum()
-        )
-        paying_share = 100.0 * paying_users / total_users if total_users > 0 else 0.0
-        st.caption(
-            "This chart shows the distribution of the user base between free and paying users. "
-            f"Paying users represent about {paying_share:.2f}% of total users, "
-            "which helps frame monetization potential across the platform."
-        )
 
-    with col4:
-        fig_avg_cost = px.box(
-            request_cost_dist,
-            x="model",
-            y="request_cost",
-            title="<b>request cost distribution by model</b>",
-            labels={"model": "model", "request_cost": "average request cost ($)"},
-            color="model",
-            color_discrete_map=MODEL_COLORS_UPPER,
-            points=False,
-        )
-        fig_avg_cost.update_layout(
-            template="simple_white",
-            showlegend=False,
-            title_font=dict(size=20),
-            xaxis_title_font=dict(size=14),
-            yaxis_title_font=dict(size=14),
-            font=dict(size=13),
-        )
-        fig_avg_cost.update_traces(
-            opacity=0.95,
-            line=dict(color="black", width=2),
-            hovertemplate="model: %{x}<br>request cost: $%{y:,.2f}<extra></extra>"
-        )
-        fig_avg_cost.update_traces(
-            selector=dict(name="MINI"),
-            fillcolor="rgba(114, 183, 178, 0.95)",
-        )
-        fig_avg_cost.update_traces(
-            selector=dict(name="PRO"),
-            fillcolor="rgba(228, 87, 86, 0.95)",
-        )
-        fig_avg_cost.update_yaxes(tickprefix="$")
-        st.plotly_chart(fig_avg_cost, use_container_width=True)
+def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> None:
+    fig_avg_cost = px.box(
+        request_cost_dist,
+        x="model",
+        y="request_cost",
+        title="<b>request cost distribution by model</b>",
+        labels={"model": "model", "request_cost": "average request cost ($)"},
+        color="model",
+        color_discrete_map=MODEL_COLORS_UPPER,
+        points=False,
+    )
+    fig_avg_cost.update_layout(
+        template="simple_white",
+        showlegend=False,
+        title_font=dict(size=20),
+        xaxis_title_font=dict(size=14),
+        yaxis_title_font=dict(size=14),
+        font=dict(size=13),
+    )
+    fig_avg_cost.update_traces(
+        opacity=0.95,
+        line=dict(color="black", width=2),
+        hovertemplate="model: %{x}<br>request cost: $%{y:,.2f}<extra></extra>"
+    )
+    fig_avg_cost.update_traces(
+        selector=dict(name="MINI"),
+        fillcolor="rgba(114, 183, 178, 0.95)",
+    )
+    fig_avg_cost.update_traces(
+        selector=dict(name="PRO"),
+        fillcolor="rgba(228, 87, 86, 0.95)",
+    )
+    fig_avg_cost.update_yaxes(tickprefix="$")
+    st.plotly_chart(fig_avg_cost, use_container_width=True)
 
 
 def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame) -> None:
@@ -876,7 +872,11 @@ def render_product_analysis_and_cost(
         _render_traffic_share_chart(research_requests)
 
     # 3-6) remaining charts in dashboard order
-    _render_user_base_and_request_cost_charts(user_dist, request_cost_dist)
+    col3, col4 = st.columns(2)
+    with col3:
+        _render_user_base_chart(user_dist)
+    with col4:
+        _render_request_cost_distribution_chart(request_cost_dist)
     _render_total_cost_by_model_user_chart(cost_by_model_user)
     _render_latency_chart(research_requests)
 
