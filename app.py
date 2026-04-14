@@ -472,7 +472,7 @@ def _render_abandonment_chart(lifecycle: pd.DataFrame) -> None:
         no_return_df,
         x="first_request_label_display",
         y="pct_single_row",
-        title="<b>Abandonment rate by platform features</b>",
+        title="Abandonment rate by platform features",
         labels={
             "first_request_label_display": "first platform feature",
             "pct_single_row": "Abandonment rate (%)",
@@ -528,7 +528,7 @@ def _render_traffic_share_chart(research_requests: pd.DataFrame) -> None:
         pareto,
         x="cum_users_pct",
         y="cum_requests_pct",
-        title="<b>Traffic share distribution over users share</b>",
+        title="Traffic share distribution over users share",
         labels={
             "cum_users_pct": "Share of research API users (%)",
             "cum_requests_pct": "Share of research API traffic (%)",
@@ -573,7 +573,7 @@ def _render_user_base_chart(user_dist: pd.DataFrame) -> None:
         values="users",
         names="user_type_display",
         hole=0.5,
-        title="<b>Free tier and paying users share</b>",
+        title="Free tier and paying users share",
         color="user_type_display",
         color_discrete_map={"Free users": "#E45756", "Paying users": "#4C78A8"},
     )
@@ -614,7 +614,7 @@ def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> 
         request_cost_dist,
         x="model",
         y="request_cost",
-        title="<b>Request cost distribution by model</b>",
+        title="Request cost distribution by model",
         labels={"model": "Model", "request_cost": "Request cost ($)"},
         color="model",
         color_discrete_map=model_colors_upper,
@@ -676,7 +676,7 @@ def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame, eco
         y="request_cost",
         color="user_type_display",
         barmode="stack",
-        title="<b>Total request cost by model and user type</b>",
+        title="Total request cost by model and user type",
         labels={
             "model": "Model",
             "request_cost": "Total request cost ($)",
@@ -724,7 +724,7 @@ def _render_latency_chart(research_requests: pd.DataFrame) -> None:
         latency_points,
         x="model",
         y="response_time_seconds",
-        title="<b>response time distribution by model (mini vs pro)</b>",
+        title="response time distribution by model (mini vs pro)",
         labels={
             "response_time_seconds": "response time (seconds)",
             "model": "model",
@@ -837,7 +837,7 @@ def _render_cancellation_analysis_section(research_requests: pd.DataFrame) -> No
             wait_effect,
             x="duration_group",
             y="cancel_rate",
-            title="<b>cancellation rate by wait time</b>",
+            title="cancellation rate by wait time",
             labels={"duration_group": "duration group", "cancel_rate": "cancel rate"},
             color="duration_group",
             color_discrete_sequence=["#4C78A8", "#E45756"],
@@ -872,7 +872,7 @@ def _render_cancellation_analysis_section(research_requests: pd.DataFrame) -> No
             y="value",
             color="metric",
             barmode="group",
-            title="<b>technical inefficiency by wait time</b>",
+            title="technical inefficiency by wait time",
             labels={"duration_group": "duration group", "value": "average", "metric": ""},
             color_discrete_map={"median LLM calls": "#E45756", "median sources found": "#72B7B2"},
             text=inefficiency_long["value"].map(lambda v: f"{v:.2f}"),
@@ -897,7 +897,7 @@ def _render_cancellation_analysis_section(research_requests: pd.DataFrame) -> No
         names="billing_status",
         values="requests",
         hole=0.5,
-        title="<b>billing status of cancelled requests</b>",
+        title="billing status of cancelled requests",
         color="billing_status",
         color_discrete_map={"unbilled (0 credits)": "#E45756", "billed (>0 credits)": "#4C78A8"},
     )
@@ -1022,7 +1022,7 @@ def render_infrastructure_and_cost_analysis(
             names="category",
             values="cost",
             hole=0.5,
-            title="<b>budget split: infrastructure vs model cost</b>",
+            title="budget split: infrastructure vs model cost",
             color="category",
             color_discrete_map={
                 "hardware & infrastructure": "#4C78A8",
@@ -1073,7 +1073,7 @@ def render_infrastructure_and_cost_analysis(
         )
         fig_growth.update_layout(
             template="simple_white",
-            title="<b>the growth paradox: requests vs total cost over time</b>",
+            title="the growth paradox: requests vs total cost over time",
             title_font=dict(size=20),
             font=dict(size=13),
             legend_title_text="",
@@ -1116,7 +1116,7 @@ def render_infrastructure_and_cost_analysis(
     fig_heatmap = px.imshow(
         heatmap_pivot,
         labels=dict(x="hour of day", y="day of week", color="mean infra cost ($)"),
-        title="<b>mean infrastructure cost by day of week and hour</b>",
+        title="mean infrastructure cost by day of week and hour",
         color_continuous_scale=coolwarm_scale,
         aspect="auto",
     )
