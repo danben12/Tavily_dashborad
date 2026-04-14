@@ -1326,15 +1326,46 @@ def render_infrastructure_and_cost_analysis(
             ),
         )
 
-    hourly_stability = pd.DataFrame(columns=["infra_total"])
-    if "infra_total" in infra_l.columns:
-        hourly_stability = infra_l[["infra_total"]].dropna().copy()
-    hourly_min = float(hourly_stability["infra_total"].min()) if not hourly_stability.empty else 0.0
-    hourly_median = float(hourly_stability["infra_total"].median()) if not hourly_stability.empty else 0.0
-    hourly_max = float(hourly_stability["infra_total"].max()) if not hourly_stability.empty else 0.0
+    hourly_stability = pd.DataFrame(columns=["total_hourly_cost"])
+    if {"infra_total"}.issubset(infra_l.columns):
+        model_cols = [c for c in infra_l.columns if c.startswith("model_")]
+        infra_l["model_total"] = infra_l[model_cols].sum(axis=1) if model_cols else 0.0
+        infra_l["total_hourly_cost"] = infra_l["infra_total"] + infra_l["model_total"]
+        hourly_stability = infra_l[["total_hourly_cost"]].dropna().copy()
+    hourly_min = float(hourly_stability["total_hourly_cost"].min()) if not hourly_stability.empty else 0.0
+    hourly_median = float(hourly_stability["total_hourly_cost"].median()) if not hourly_stability.empty else 0.0
+    hourly_max = float(hourly_stability["total_hourly_cost"].max()) if not hourly_stability.empty else 0.0
 
     col1, col2 = st.columns(2)
     with col1:
+        fig_stability = px.box(
+            hourly_stability,
+            y="total_hourly_cost",
+            title="Hourly total cost stability",
+            labels={"total_hourly_cost": "Hourly total cost ($)"},
+            points=False,
+        )
+        fig_stability.update_traces(
+            marker_color="#4C78A8",
+            line=dict(color="#4C78A8", width=2),
+            hovertemplate="Hourly total cost: $%{y:,.2f}<extra></extra>",
+        )
+        fig_stability.update_layout(
+            template="simple_white",
+            showlegend=False,
+            title_font=dict(size=20),
+            yaxis_title_font=dict(size=14),
+            font=dict(size=13),
+            margin=dict(t=60, b=40, l=30, r=30),
+        )
+        st.plotly_chart(fig_stability, use_container_width=True)
+        st.caption(
+            "This chart summarizes hourly total cost stability (infrastructure plus model costs). "
+            f"Hourly cost ranges from about ${hourly_min:,.0f} to ${hourly_max:,.0f}, "
+            f"with a median of about ${hourly_median:,.0f}, indicating a relatively stable operating band."
+        )
+
+    with col2:
         budget_split = pd.DataFrame(
             {
                 "category": ["Infrastructure costs", "Model costs"],
@@ -1371,34 +1402,6 @@ def render_infrastructure_and_cost_analysis(
             "This chart shows the split between infrastructure and model spending. "
             f"Infrastructure accounts for about {infra_share_pct:.1f}% of total measured cost, "
             f"while model costs account for about {model_share_pct:.1f}%."
-        )
-
-    with col2:
-        fig_stability = px.box(
-            hourly_stability,
-            y="infra_total",
-            title="Hourly infrastructure cost stability",
-            labels={"infra_total": "Hourly infrastructure cost ($)"},
-            points=False,
-        )
-        fig_stability.update_traces(
-            marker_color="#4C78A8",
-            line=dict(color="#4C78A8", width=2),
-            hovertemplate="Hourly infrastructure cost: $%{y:,.2f}<extra></extra>",
-        )
-        fig_stability.update_layout(
-            template="simple_white",
-            showlegend=False,
-            title_font=dict(size=20),
-            yaxis_title_font=dict(size=14),
-            font=dict(size=13),
-            margin=dict(t=60, b=40, l=30, r=30),
-        )
-        st.plotly_chart(fig_stability, use_container_width=True)
-        st.caption(
-            "This chart summarizes hourly infrastructure cost stability. "
-            f"Hourly cost ranges from about ${hourly_min:,.0f} to ${hourly_max:,.0f}, "
-            f"with a median of about ${hourly_median:,.0f}, indicating a relatively stable operating band."
         )
 
     # chart 3) requests vs cost trend
