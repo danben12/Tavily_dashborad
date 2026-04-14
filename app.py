@@ -640,7 +640,7 @@ def render_product_analysis_and_cost(
                 no_return_df,
                 x="first_request_label_display",
                 y="pct_single_row",
-                title="<b>Abandonment After First Activity by Platform Features</b>",
+                title="<b>Abandonment after first activity by platform features.</b>",
                 labels={
                     "first_request_label_display": "first platform feature",
                     "pct_single_row": "Abandonment rate (%)",
