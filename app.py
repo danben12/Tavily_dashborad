@@ -1,4 +1,3 @@
-import html
 import math
 import zipfile
 from pathlib import Path
@@ -528,90 +527,60 @@ def _render_product_top_metrics(
     non_streaming_cancelled_requests: int,
     non_streaming_total_requests: int,
 ) -> None:
-    def _render_metric_card(
-        title: str,
-        value: str,
-        help_text: str,
-        value_color: str,
-    ) -> None:
-        safe_title = html.escape(title)
-        safe_value = html.escape(value)
-        safe_help = html.escape(help_text)
-        st.markdown(
-            f"""
-            <div style="
-                padding: 4px 2px;
-            ">
-                <div style="font-size: 14px; color: #FAFAFA; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                    <span>{safe_title}</span>
-                    <span title="{safe_help}" style="cursor: help; color: #A7A7A7; font-size: 12px; line-height: 1;">&#9432;</span>
-                </div>
-                <div style="font-size: 36px; line-height: 1.1; color: {value_color};">{safe_value}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
     m1, m2, m3 = st.columns(3)
     with m1:
-        _render_metric_card(
-            title="Research API users acquisition percentage",
-            value=f"{acquisition_pct:.2f}%",
-            help_text=(
+        st.metric(
+            "Research API users acquisition percentage",
+            f"{acquisition_pct:.2f}%",
+            help=(
                 "out of 16,324 total users, 12,895 joined on/after Nov 1, 2025. "
                 "out of them, 12,006 had at least one activity after their join date. "
                 "out of those active new users, 2,270 used the Research API as their first activity."
             ),
-            value_color="#7DB7FF",
         )
     with m2:
-        _render_metric_card(
-            title="Success rate",
-            value=f"{success_rate_pct:.2f}%",
-            help_text=(
+        st.metric(
+            "Success rate",
+            f"{success_rate_pct:.2f}%",
+            help=(
                 "share of research API requests with status success. "
                 f"total success requests: {success_request_count:,}."
             ),
-            value_color="#7DB7FF",
         )
     with m3:
-        _render_metric_card(
-            title="Non-streaming cancellation rate",
-            value=f"{non_streaming_cancellation_rate_pct:.2f}%",
-            help_text=(
+        st.metric(
+            "Non-streaming cancellation rate",
+            f"{non_streaming_cancellation_rate_pct:.2f}%",
+            help=(
                 f"cancelled requests: {non_streaming_cancelled_requests:,} "
                 f"out of {non_streaming_total_requests:,} non-streaming requests."
             ),
-            value_color="#7DB7FF",
         )
 
     m4, m5, m6 = st.columns(3)
     with m4:
-        _render_metric_card(
-            title="Total requests costs",
-            value=_format_compact_cost(total_request_cost),
-            help_text="sum of all research API request costs.",
-            value_color="#E45756",
+        st.metric(
+            "Total requests costs",
+            _format_compact_cost(total_request_cost),
+            help="sum of all research API request costs.",
         )
     with m5:
-        _render_metric_card(
-            title="Cancellation rate",
-            value=f"{cancellation_rate_pct:.2f}%",
-            help_text=(
+        st.metric(
+            "Cancellation rate",
+            f"{cancellation_rate_pct:.2f}%",
+            help=(
                 "share of research API requests with status cancelled. "
                 f"total cancelled requests: {cancelled_request_count:,}."
             ),
-            value_color="#E45756",
         )
     with m6:
-        _render_metric_card(
-            title="Streaming cancellation rate",
-            value=f"{streaming_cancellation_rate_pct:.2f}%",
-            help_text=(
+        st.metric(
+            "Streaming cancellation rate",
+            f"{streaming_cancellation_rate_pct:.2f}%",
+            help=(
                 f"cancelled requests: {streaming_cancelled_requests:,} "
                 f"out of {streaming_total_requests:,} streaming requests."
             ),
-            value_color="#E45756",
         )
 
 
