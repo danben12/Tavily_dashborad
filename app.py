@@ -641,9 +641,9 @@ def _render_traffic_share_chart(research_requests: pd.DataFrame) -> None:
     fig_pareto.add_hline(y=y_at_5, line_dash="dash", line_color="gray")
     fig_pareto.update_traces(
         selector=dict(type="scatter", mode="lines"),
-        line=dict(color="#0057D9", width=5),
+        line=dict(color="#4C78A8", width=5),
         fill="tozeroy",
-        fillcolor="rgba(0,87,217,0.30)",
+        fillcolor="rgba(76,120,168,0.30)",
     )
     if len(fig_pareto.data) >= 1:
         fig_pareto.data[0].hovertemplate = "users: %{x:.2f}%<br>requests: %{y:.2f}%<extra></extra>"
