@@ -574,7 +574,7 @@ def _render_product_top_metrics(acquisition_pct: float, total_request_cost: floa
         """
         <style>
         div[data-testid="stMetric"]:nth-of-type(1) [data-testid="stMetricValue"] {
-            color: #4C78A8;
+            color: #7DB7FF;
         }
         div[data-testid="stMetric"]:nth-of-type(2) [data-testid="stMetricValue"] {
             color: #E45756;
