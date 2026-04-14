@@ -1066,7 +1066,8 @@ def _render_cancelled_request_billing_status_chart(billing_dist: pd.DataFrame) -
         color_discrete_map={"Unbilled (0 credits)": "#E45756", "Billed (>0 credits)": "#4C78A8"},
     )
     fig_billing.update_traces(
-        hovertemplate="%{label}<br>Requests: %{value:,.0f}<br>Share: %{percent:.2%}<extra></extra>"
+        hovertemplate="%{label}<br>Requests: %{value:,.0f}<br>Share: %{percent:.2%}<extra></extra>",
+        textfont_color="white",
     )
     fig_billing.update_layout(
         template="simple_white",
