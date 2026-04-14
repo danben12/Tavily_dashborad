@@ -585,6 +585,8 @@ def _render_user_base_and_request_cost_charts(
             font=dict(size=13),
         )
         fig_avg_cost.update_traces(
+            opacity=0.9,
+            line=dict(color="black", width=2),
             hovertemplate="model: %{x}<br>request cost: $%{y:,.2f}<extra></extra>"
         )
         fig_avg_cost.update_yaxes(tickprefix="$")
