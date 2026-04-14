@@ -893,14 +893,14 @@ def _render_cancelled_response_time_histogram(research_requests: pd.DataFrame) -
     fig_cancelled_hist.update_layout(
         template="simple_white",
         showlegend=False,
-        title="Cancelled requests response time (30-second buckets)",
+        title="Cancelled requests response time (30-second bins)",
         title_font=dict(size=20),
         xaxis_title_font=dict(size=14),
         yaxis_title_font=dict(size=14),
         font=dict(size=13),
         margin=dict(t=60, b=40, l=30, r=30),
     )
-    fig_cancelled_hist.update_xaxes(title_text="Response time bucket (seconds)")
+    fig_cancelled_hist.update_xaxes(title_text="Response time (seconds)")
     fig_cancelled_hist.update_yaxes(title_text="Cancelled requests")
     st.plotly_chart(fig_cancelled_hist, use_container_width=True)
 
