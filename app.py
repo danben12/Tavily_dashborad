@@ -1576,7 +1576,7 @@ def render_infrastructure_and_cost_analysis(
                 f"This heatmap shows average hourly infrastructure cost by weekday and hour. "
                 f"There is a cyclical pattern in infrastructure cost, with nights and weekends tending to be lower. "
                 f"On weekends, average hourly traffic drops by {weekend_traffic_drop_pct:.1f}%, "
-                f"while average hourly total cost declines by {weekend_total_cost_drop_pct:.1f}%."
+                f"while average hourly total cost declines by only {weekend_total_cost_drop_pct:.1f}%."
             )
         else:
             st.caption(
