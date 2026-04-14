@@ -1360,8 +1360,8 @@ def render_infrastructure_and_cost_analysis(
         )
         st.plotly_chart(fig_stability, use_container_width=True)
         st.caption(
-            "This chart summarizes hourly total cost stability (infrastructure plus model costs). "
-            f"Hourly cost ranges from about ${hourly_min:,.0f} to ${hourly_max:,.0f}, "
+            "This chart summarizes hourly total cost stability. "
+            f"Hourly cost ranges from about ${hourly_min:,.0f}-${hourly_max:,.0f}, "
             f"with a median of about ${hourly_median:,.0f}, indicating a relatively stable operating band."
         )
 
