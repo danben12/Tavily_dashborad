@@ -1519,9 +1519,13 @@ def render_infrastructure_and_cost_analysis(
     )
     st.plotly_chart(fig_heatmap_cost, use_container_width=True)
     heatmap_long = (
-        cost_heatmap_pivot.stack(dropna=True)
-        .rename("mean_infrastructure_cost")
-        .reset_index()
+        cost_heatmap_pivot.reset_index()
+        .melt(
+            id_vars="day_of_week",
+            var_name="hour_of_day",
+            value_name="mean_infrastructure_cost",
+        )
+        .dropna(subset=["mean_infrastructure_cost"])
         .rename(columns={"day_of_week": "day", "hour_of_day": "hour"})
     )
     if not heatmap_long.empty:
