@@ -582,7 +582,7 @@ def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> 
     )
     fig_avg_cost.update_traces(
         opacity=0.95,
-        line=dict(color="black", width=2),
+        line=dict(color="white", width=2),
         hovertemplate="model: %{x}<br>request cost: $%{y:,.2f}<extra></extra>"
     )
     fig_avg_cost.update_traces(
