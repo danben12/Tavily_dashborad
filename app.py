@@ -679,7 +679,7 @@ def render_product_analysis_and_cost(
             st.plotly_chart(fig_retention, use_container_width=True)
             st.caption(
                 "This chart analyzes user retention based on the initial platform interaction. "
-                "It shows the abandonment rate, defined as no subsequent engagement after first usage, "
+                "It shows the abandonment rate, defined as no subsequent engagement across the platform after first usage, "
                 "segmented by the first feature used. "
                 f"Notably, the Research feature shows an abandonment rate of {research_rate_text}, "
                 "which is significantly higher than other platform features."
