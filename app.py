@@ -637,7 +637,7 @@ def render_product_analysis_and_cost(
             ]
             worst_row = no_return_df.loc[no_return_df["pct_single_row"].idxmax()]
             st.caption(
-                "for each platform feature, this chart shows the share of users with only one "
+                "For each platform feature, this chart shows the share of users with only one "
                 "usage after signup. "
                 f"{worst_row['first_request_label_display']} shows the highest abandonment rate "
                 f"({worst_row['pct_single_row']:.2f}%)."
