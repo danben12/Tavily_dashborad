@@ -2,7 +2,6 @@ import math
 import zipfile
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -1416,69 +1415,16 @@ def render_infrastructure_and_cost_analysis(
             secondary_y=True,
         )
         st.plotly_chart(fig_growth, use_container_width=True)
-        corr_series = growth_daily[["requests_ma7", "total_cost_ma7"]].dropna()
-        pearson_r = (
-            float(corr_series["requests_ma7"].corr(corr_series["total_cost_ma7"]))
-            if len(corr_series) > 1
+        corr_daily = growth_daily[["total_requests", "total_daily_cost"]].dropna()
+        pearson_r_daily = (
+            float(corr_daily["total_requests"].corr(corr_daily["total_daily_cost"]))
+            if len(corr_daily) > 1
             else 0.0
         )
         st.caption(
             "This chart shows day-level aggregation with 7-day moving averages for total requests and total daily infrastructure cost on two vertical axes. "
-            f"The two lines move together, indicating a strong positive correlation between demand and cost trends over time (Pearson r = {pearson_r:.2f})."
+            f"Using raw daily data (without moving-average smoothing), requests and total daily infrastructure cost show a strong positive correlation (Pearson r = {pearson_r_daily:.2f})."
         )
-        if not corr_series.empty:
-            fig_corr = px.scatter(
-                corr_series,
-                x="requests_ma7",
-                y="total_cost_ma7",
-                title="Requests-cost correlation check",
-                labels={
-                    "requests_ma7": "Requests (7d ma)",
-                    "total_cost_ma7": "Total daily infrastructure cost (7d ma, $)",
-                },
-            )
-            fig_corr.update_layout(
-                template="simple_white",
-                title_font=dict(size=18),
-                xaxis_title_font=dict(size=14),
-                yaxis_title_font=dict(size=14),
-                font=dict(size=12),
-                margin=dict(t=60, b=40, l=30, r=30),
-            )
-            fig_corr.update_traces(
-                marker=dict(color="#4C78A8", size=7, opacity=0.75),
-                selector=dict(mode="markers"),
-                hovertemplate="Requests (7d ma): %{x:,.0f}<br>Total daily infrastructure cost (7d ma): $%{y:,.2f}<extra></extra>",
-            )
-            if len(corr_series) > 1:
-                x_vals = corr_series["requests_ma7"].to_numpy(dtype=float)
-                y_vals = corr_series["total_cost_ma7"].to_numpy(dtype=float)
-                slope, intercept = np.polyfit(x_vals, y_vals, 1)
-                x_line = np.linspace(x_vals.min(), x_vals.max(), 100)
-                y_line = slope * x_line + intercept
-                fig_corr.add_trace(
-                    go.Scatter(
-                        x=x_line,
-                        y=y_line,
-                        mode="lines",
-                        name="Regression line",
-                        line=dict(color="#E45756", width=3),
-                        hovertemplate="Regression line<extra></extra>",
-                    )
-                )
-            fig_corr.add_annotation(
-                xref="paper",
-                yref="paper",
-                x=0.02,
-                y=0.98,
-                text=f"Pearson r = {pearson_r:.2f}",
-                showarrow=False,
-                font=dict(size=13, color="#111111"),
-                bgcolor="rgba(255,255,255,0.8)",
-                bordercolor="#D3D3D3",
-                borderwidth=1,
-            )
-            st.plotly_chart(fig_corr, use_container_width=True)
 
     day_order = [
         "Monday",
