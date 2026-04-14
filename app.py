@@ -1326,6 +1326,13 @@ def render_infrastructure_and_cost_analysis(
             ),
         )
 
+    hourly_stability = pd.DataFrame(columns=["infra_total"])
+    if "infra_total" in infra_l.columns:
+        hourly_stability = infra_l[["infra_total"]].dropna().copy()
+    hourly_min = float(hourly_stability["infra_total"].min()) if not hourly_stability.empty else 0.0
+    hourly_median = float(hourly_stability["infra_total"].median()) if not hourly_stability.empty else 0.0
+    hourly_max = float(hourly_stability["infra_total"].max()) if not hourly_stability.empty else 0.0
+
     col1, col2 = st.columns(2)
     with col1:
         budget_split = pd.DataFrame(
@@ -1359,72 +1366,113 @@ def render_infrastructure_and_cost_analysis(
             legend_title_text="",
         )
         st.plotly_chart(fig_donut, use_container_width=True)
+        st.caption(
+            "This chart shows the split between infrastructure and model spending. "
+            f"Infrastructure accounts for about {infra_share_pct:.1f}% of total measured cost, "
+            f"while model costs account for about {model_share_pct:.1f}%."
+        )
 
     with col2:
-        growth_daily = daily_agg.sort_values("day").copy()
-        growth_daily["requests_ma7"] = (
-            growth_daily["total_requests"].rolling(window=7, min_periods=1).mean()
+        s1, s2, s3 = st.columns(3)
+        with s1:
+            st.metric("Min hourly infra cost", f"${hourly_min:,.0f}")
+        with s2:
+            st.metric("Median hourly infra cost", f"${hourly_median:,.0f}")
+        with s3:
+            st.metric("Max hourly infra cost", f"${hourly_max:,.0f}")
+
+        fig_stability = px.box(
+            hourly_stability,
+            y="infra_total",
+            title="Hourly infrastructure cost stability",
+            labels={"infra_total": "Hourly infrastructure cost ($)"},
+            points=False,
         )
-        growth_daily["total_cost_ma7"] = (
-            growth_daily["total_daily_cost"].rolling(window=7, min_periods=1).mean()
+        fig_stability.update_traces(
+            marker_color="#4C78A8",
+            line=dict(color="#4C78A8", width=2),
+            hovertemplate="Hourly infrastructure cost: $%{y:,.2f}<extra></extra>",
         )
-        fig_growth = make_subplots(specs=[[{"secondary_y": True}]])
-        fig_growth.add_trace(
-            go.Scatter(
-                x=growth_daily["day"],
-                y=growth_daily["requests_ma7"],
-                name="Total requests (7d ma)",
-                mode="lines+markers",
-                line=dict(color="#4C78A8", width=3),
-                hovertemplate="Day: %{x}<br>Requests (7d ma): %{y:,.0f}<extra></extra>",
-            ),
-            secondary_y=False,
-        )
-        fig_growth.add_trace(
-            go.Scatter(
-                x=growth_daily["day"],
-                y=growth_daily["total_cost_ma7"],
-                name="Total daily infrastructure cost (7d ma)",
-                mode="lines+markers",
-                line=dict(color="#E45756", width=3),
-                hovertemplate="Day: %{x}<br>Total daily infrastructure cost (7d ma): $%{y:,.2f}<extra></extra>",
-            ),
-            secondary_y=True,
-        )
-        fig_growth.update_layout(
+        fig_stability.update_layout(
             template="simple_white",
-            title="Requests vs total cost over time",
+            showlegend=False,
             title_font=dict(size=20),
+            yaxis_title_font=dict(size=14),
             font=dict(size=13),
-            legend_title_text="",
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="left",
-                x=0.0,
-            ),
-            height=500,
-            margin=dict(t=70, b=40, l=30, r=30),
+            margin=dict(t=60, b=40, l=30, r=30),
         )
-        fig_growth.update_xaxes(title_text="Time")
-        fig_growth.update_yaxes(title_text="Total requests", secondary_y=False)
-        fig_growth.update_yaxes(
-            title_text="Total daily infrastructure cost ($)",
-            tickprefix="$",
-            secondary_y=True,
-        )
-        st.plotly_chart(fig_growth, use_container_width=True)
-        corr_daily = growth_daily[["total_requests", "total_daily_cost"]].dropna()
-        pearson_r_daily = (
-            float(corr_daily["total_requests"].corr(corr_daily["total_daily_cost"]))
-            if len(corr_daily) > 1
-            else 0.0
-        )
+        st.plotly_chart(fig_stability, use_container_width=True)
         st.caption(
-            "This chart shows day-level aggregation with 7-day moving averages for total requests and total daily infrastructure cost on two vertical axes. "
-            f"Using raw daily data (without moving-average smoothing), requests and total daily infrastructure cost show a strong positive correlation (Pearson r = {pearson_r_daily:.2f})."
+            "This chart summarizes hourly infrastructure cost stability. "
+            f"Hourly cost ranges from about ${hourly_min:,.0f} to ${hourly_max:,.0f}, "
+            f"with a median of about ${hourly_median:,.0f}, indicating a relatively stable operating band."
         )
+
+    # chart 3) requests vs cost trend
+    growth_daily = daily_agg.sort_values("day").copy()
+    growth_daily["requests_ma7"] = (
+        growth_daily["total_requests"].rolling(window=7, min_periods=1).mean()
+    )
+    growth_daily["total_cost_ma7"] = (
+        growth_daily["total_daily_cost"].rolling(window=7, min_periods=1).mean()
+    )
+    fig_growth = make_subplots(specs=[[{"secondary_y": True}]])
+    fig_growth.add_trace(
+        go.Scatter(
+            x=growth_daily["day"],
+            y=growth_daily["requests_ma7"],
+            name="Total requests (7d ma)",
+            mode="lines+markers",
+            line=dict(color="#4C78A8", width=3),
+            hovertemplate="Day: %{x}<br>Requests (7d ma): %{y:,.0f}<extra></extra>",
+        ),
+        secondary_y=False,
+    )
+    fig_growth.add_trace(
+        go.Scatter(
+            x=growth_daily["day"],
+            y=growth_daily["total_cost_ma7"],
+            name="Total daily infrastructure cost (7d ma)",
+            mode="lines+markers",
+            line=dict(color="#E45756", width=3),
+            hovertemplate="Day: %{x}<br>Total daily infrastructure cost (7d ma): $%{y:,.2f}<extra></extra>",
+        ),
+        secondary_y=True,
+    )
+    fig_growth.update_layout(
+        template="simple_white",
+        title="Requests vs total cost over time",
+        title_font=dict(size=20),
+        font=dict(size=13),
+        legend_title_text="",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0.0,
+        ),
+        height=500,
+        margin=dict(t=70, b=40, l=30, r=30),
+    )
+    fig_growth.update_xaxes(title_text="Time")
+    fig_growth.update_yaxes(title_text="Total requests", secondary_y=False)
+    fig_growth.update_yaxes(
+        title_text="Total daily infrastructure cost ($)",
+        tickprefix="$",
+        secondary_y=True,
+    )
+    st.plotly_chart(fig_growth, use_container_width=True)
+    corr_daily = growth_daily[["total_requests", "total_daily_cost"]].dropna()
+    pearson_r_daily = (
+        float(corr_daily["total_requests"].corr(corr_daily["total_daily_cost"]))
+        if len(corr_daily) > 1
+        else 0.0
+    )
+    st.caption(
+        "This chart shows day-level aggregation with 7-day moving averages for total requests and total daily infrastructure cost on two vertical axes. "
+        f"Using raw daily data (without moving-average smoothing), requests and total daily infrastructure cost show a strong positive correlation (Pearson r = {pearson_r_daily:.2f})."
+    )
 
     day_order = [
         "Monday",
