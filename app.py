@@ -535,6 +535,7 @@ def _render_product_top_metrics(
     non_streaming_cancelled_requests: int,
     non_streaming_total_requests: int,
 ) -> None:
+    # Keep KPI ordering stable so notebook validations and dashboard layout stay aligned.
     with st.container():
         m1, m2, m3 = st.columns(3)
         with m1:
@@ -595,6 +596,7 @@ def _render_product_top_metrics(
 
 
 def _render_abandonment_chart(lifecycle: pd.DataFrame) -> None:
+    # This chart uses "single_row_only" as a practical no-return proxy after first touch.
     no_return_df = _single_row_no_return_by_first_request(lifecycle)
     if no_return_df.empty:
         st.warning("Not enough data for single-row usage by first request type.")
@@ -675,6 +677,7 @@ def _render_traffic_share_chart(research_requests: pd.DataFrame) -> None:
         return
 
     pareto, y_at_5 = pareto_data
+    # The 5% guide lines make concentration visible at the same benchmark used in narrative text.
     fig_pareto = px.line(
         pareto,
         x="cum_users_pct",
@@ -850,6 +853,7 @@ def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame, eco
     )
     fig_stacked.update_yaxes(tickprefix="$")
     st.plotly_chart(fig_stacked, use_container_width=True)
+    # Compact strings are prepared once so the caption can be readable without long raw numbers.
     free_pro_requests_compact = f"{economics_summary['free_pro_request_count'] / 1000:.0f}K"
     total_pro_cost_free_compact = _format_compact_cost(economics_summary["total_pro_cost_free"]).replace(
         "$", "\\$"
@@ -1093,6 +1097,7 @@ def render_product_analysis(
 ) -> None:
     st.title("Research API product analysis")
 
+    # Build cohort lifecycle once; several product KPIs/charts depend on this normalized view.
     lifecycle, _joined_users_count = _build_hourly_lifecycle(users, hourly_usage)
     if lifecycle.empty:
         st.error("Could not build lifecycle table from users and hourly usage.")
@@ -1113,6 +1118,7 @@ def render_product_analysis(
         return
     user_dist, request_cost_dist, cost_by_model_user, economics_summary = q2_data
 
+    # Compute headline KPI values directly from request-level data for top-metric tiles.
     rr_cost = _lowercase_columns(research_requests)
     total_request_cost = 0.0
     success_rate_pct = 0.0
@@ -1216,6 +1222,7 @@ def render_infrastructure_and_cost_analysis(
     hourly_usage: pd.DataFrame,
     research_requests: pd.DataFrame,
 ) -> None:
+    # Keep a fixed diverging palette so high/low cost periods remain visually consistent.
     coolwarm_scale = [
         [0.0, "#3B4CC0"],
         [0.2, "#6F92F3"],
@@ -1234,6 +1241,7 @@ def render_infrastructure_and_cost_analysis(
         return
     finops_metrics, daily_agg, monthly_agg, heatmap_data = prepared
 
+    # Split total cost into infra vs model components for KPI and donut narratives.
     total_cost_base = finops_metrics["total_hardware_cost"] + finops_metrics["total_ai_cost"]
     infra_share_pct = (100.0 * finops_metrics["total_hardware_cost"] / total_cost_base) if total_cost_base > 0 else 0.0
     model_share_pct = (100.0 * finops_metrics["total_ai_cost"] / total_cost_base) if total_cost_base > 0 else 0.0
@@ -1244,6 +1252,7 @@ def render_infrastructure_and_cost_analysis(
     growth_start = pd.Timestamp("2025-11-01", tz="UTC")
     growth_end = pd.Timestamp("2026-03-01", tz="UTC")
 
+    # Growth metrics compare the same two anchor months across users, traffic, and infra spend.
     user_start = user_end = 0.0
     if {"created_at", "user_id"}.issubset(users_l.columns):
         users_l["created_at"] = pd.to_datetime(users_l["created_at"], errors="coerce", utc=True)
@@ -1288,6 +1297,7 @@ def render_infrastructure_and_cost_analysis(
     requests_growth_ratio = _growth_ratio(req_start, req_end)
     infra_growth_ratio = _growth_ratio(infra_start, infra_end)
 
+    # Top KPI strip combines absolute spend with three growth multipliers for quick executive read.
     k1, g1, g2, g3 = st.columns(4)
     with k1:
         st.metric(
@@ -1404,7 +1414,7 @@ def render_infrastructure_and_cost_analysis(
             f"while model costs account for about {model_share_pct:.1f}%."
         )
 
-    # chart 3) requests vs cost trend
+    # Chart 3: dual-axis trend; MA lines reduce noise while caption reports raw-data correlation.
     growth_daily = daily_agg.sort_values("day").copy()
     growth_daily["requests_ma7"] = (
         growth_daily["total_requests"].rolling(window=7, min_periods=1).mean()
@@ -1537,6 +1547,7 @@ def render_infrastructure_and_cost_analysis(
     if {"hour", "request_count"}.issubset(hourly_l.columns) and {"hour", "total_hourly_cost"}.issubset(
         infra_l.columns
     ):
+        # Weekend comparison reuses hourly granularity so traffic and cost are contrasted on the same scale.
         weekend_req = (
             hourly_l.groupby("hour", as_index=False)["request_count"]
             .sum()
@@ -1651,6 +1662,7 @@ def render_infrastructure_and_cost_analysis(
 
     hourly_activity = _lowercase_columns(hourly_usage).copy()
     if {"hour", "request_type", "request_count"}.issubset(hourly_activity.columns):
+        # This block estimates idle burn by matching zero-traffic research hours to research-cluster spend.
         hourly_activity["hour"] = pd.to_datetime(hourly_activity["hour"], errors="coerce", utc=True)
         hourly_activity["request_count"] = pd.to_numeric(
             hourly_activity["request_count"], errors="coerce"
@@ -1781,6 +1793,7 @@ def main() -> None:
         users,
     ) = load_datasets_from_zip()
 
+    # Sidebar page selector is the single entry-point switch between the two analyses.
     page = st.sidebar.radio(
         "pages",
         ["product analysis", "infrastructure & cost analysis"],
