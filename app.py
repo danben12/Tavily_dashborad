@@ -902,13 +902,6 @@ def _render_cancelled_response_time_histogram(research_requests: pd.DataFrame) -
     )
     fig_cancelled_hist.update_xaxes(title_text="Response time bucket (seconds)")
     fig_cancelled_hist.update_yaxes(title_text="Cancelled requests")
-    if "90-120" in bucket_labels:
-        fig_cancelled_hist.add_vline(
-            x=bucket_labels.index("90-120"),
-            line_dash="dash",
-            line_color="#E45756",
-            line_width=2,
-        )
     st.plotly_chart(fig_cancelled_hist, use_container_width=True)
 
 
