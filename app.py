@@ -1397,6 +1397,7 @@ def render_infrastructure_and_cost_analysis(
             title_font=dict(size=20),
             font=dict(size=13),
             legend_title_text="",
+            height=500,
             margin=dict(t=70, b=40, l=30, r=30),
         )
         fig_growth.update_xaxes(title_text="Time")
