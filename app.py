@@ -1317,7 +1317,7 @@ def render_infrastructure_and_cost_analysis(
         )
         fig_growth.update_layout(
             template="simple_white",
-            title="The growth paradox: requests vs total cost over time",
+            title="Requests vs total cost over time",
             title_font=dict(size=20),
             font=dict(size=13),
             legend_title_text="",
