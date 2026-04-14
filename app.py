@@ -641,21 +641,27 @@ def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> 
 
 
 def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame) -> None:
-    user_colors = {"Paying Users": "#4C78A8", "Free Users": "#E45756"}
+    cost_by_model_user_display = cost_by_model_user.copy()
+    cost_by_model_user_display["user_type_display"] = (
+        cost_by_model_user_display["user_type"]
+        .astype(str)
+        .replace({"Paying Users": "Paying users", "Free Users": "Free users"})
+    )
+    user_colors = {"Paying users": "#4C78A8", "Free users": "#E45756"}
     fig_stacked = px.bar(
-        cost_by_model_user,
+        cost_by_model_user_display,
         x="model",
         y="request_cost",
-        color="user_type",
+        color="user_type_display",
         barmode="stack",
         title="<b>Total request cost by model and user type</b>",
         labels={
             "model": "Model",
             "request_cost": "Total request cost ($)",
-            "user_type": "User type",
+            "user_type_display": "User type",
         },
         color_discrete_map=user_colors,
-        category_orders={"user_type": ["Paying Users", "Free Users"]},
+        category_orders={"user_type_display": ["Paying users", "Free users"]},
     )
     fig_stacked.update_layout(
         template="simple_white",
