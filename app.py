@@ -605,7 +605,7 @@ def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> 
         request_cost_dist,
         x="model",
         y="request_cost",
-        title="<b>request cost distribution by model</b>",
+        title="<b>Request cost distribution by model</b>",
         labels={"model": "model", "request_cost": "average request cost ($)"},
         color="model",
         color_discrete_map=model_colors_upper,
@@ -620,18 +620,18 @@ def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> 
         font=dict(size=13),
     )
     fig_avg_cost.update_traces(
-        opacity=0.95,
+        opacity=0.7,
         line=dict(width=2),
         hovertemplate="model: %{x}<br>request cost: $%{y:,.2f}<extra></extra>"
     )
     fig_avg_cost.update_traces(
         selector=dict(name="MINI"),
-        fillcolor="rgba(76, 120, 168, 0.95)",
+        fillcolor="rgba(76, 120, 168, 0.7)",
         line=dict(color="#4C78A8", width=2),
     )
     fig_avg_cost.update_traces(
         selector=dict(name="PRO"),
-        fillcolor="rgba(228, 87, 86, 0.95)",
+        fillcolor="rgba(228, 87, 86, 0.7)",
         line=dict(color="#E45756", width=2),
     )
     fig_avg_cost.update_yaxes(tickprefix="$")
