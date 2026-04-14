@@ -605,9 +605,9 @@ def render_product_analysis_and_cost(
             "Research API Acquisition (New Users)",
             f"{acquisition_pct:.2f}%",
             help=(
-                "Acquisition = users whose first hourly_usage row after signup has request_type = research, "
-                "divided by active users created on/after 2025-11-01. "
-                "Active = at least one hourly_usage row with hour on/after account created_at."
+                "Out of 16,324 total users, 12,895 joined on/after Nov 1, 2025. "
+                "Among them, 12,006 had at least one activity after their join date. "
+                "Out of those active new users, 2,270 used the Research API as their first activity."
             ),
         )
     with m2:
