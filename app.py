@@ -530,23 +530,17 @@ def _render_product_top_metrics(
     st.markdown(
         """
         <style>
-        div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div:nth-child(1) [data-testid="stMetricValue"],
-        div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div:nth-child(2) [data-testid="stMetricValue"],
-        div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div:nth-child(3) [data-testid="stMetricValue"] {
-            color: #7DB7FF;
+        div[data-testid="stHorizontalBlock"]:nth-of-type(1) [data-testid="stMetricValue"] {
+            color: #7DB7FF !important;
         }
-        div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div:nth-child(1) [data-testid="stMetricValue"],
-        div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div:nth-child(2) [data-testid="stMetricValue"],
-        div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div:nth-child(3) [data-testid="stMetricValue"] {
-            color: #E45756;
+        div[data-testid="stHorizontalBlock"]:nth-of-type(2) [data-testid="stMetricValue"] {
+            color: #E45756 !important;
         }
-        div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div:nth-child(1) [data-testid="stMetric"],
-        div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div:nth-child(2) [data-testid="stMetric"],
-        div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div:nth-child(3) [data-testid="stMetric"] {
-            background-color: rgba(228, 87, 86, 0.12);
-            border: 1px solid rgba(228, 87, 86, 0.45);
-            border-radius: 8px;
-            padding: 10px 12px;
+        div[data-testid="stHorizontalBlock"]:nth-of-type(2) [data-testid="stMetric"] {
+            background-color: rgba(228, 87, 86, 0.12) !important;
+            border: 1px solid rgba(228, 87, 86, 0.45) !important;
+            border-radius: 8px !important;
+            padding: 10px 12px !important;
         }
         </style>
         """,
