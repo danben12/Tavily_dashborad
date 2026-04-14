@@ -7,9 +7,6 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-MODEL_COLORS = {"mini": "#72B7B2", "pro": "#E45756"}
-MODEL_COLORS_UPPER = {"MINI": "#72B7B2", "PRO": "#E45756"}
-USER_COLORS = {"Free tier": "#F58518", "Paying users": "#4C78A8"}
 
 
 # -------------------------
@@ -603,6 +600,7 @@ def _render_user_base_chart(user_dist: pd.DataFrame) -> None:
 
 
 def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> None:
+    model_colors_upper = {"MINI": "#72B7B2", "PRO": "#E45756"}
     fig_avg_cost = px.box(
         request_cost_dist,
         x="model",
@@ -610,7 +608,7 @@ def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> 
         title="<b>request cost distribution by model</b>",
         labels={"model": "model", "request_cost": "average request cost ($)"},
         color="model",
-        color_discrete_map=MODEL_COLORS_UPPER,
+        color_discrete_map=model_colors_upper,
         points=False,
     )
     fig_avg_cost.update_layout(
@@ -641,6 +639,7 @@ def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> 
 
 
 def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame) -> None:
+    user_colors = {"Free tier": "#F58518", "Paying users": "#4C78A8"}
     fig_stacked = px.bar(
         cost_by_model_user,
         x="model",
@@ -653,7 +652,7 @@ def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame) -> 
             "request_cost": "total request cost ($)",
             "user_type": "user type",
         },
-        color_discrete_map=USER_COLORS,
+        color_discrete_map=user_colors,
     )
     fig_stacked.update_layout(
         template="simple_white",
@@ -671,6 +670,7 @@ def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame) -> 
 
 
 def _render_latency_chart(research_requests: pd.DataFrame) -> None:
+    model_colors = {"mini": "#72B7B2", "pro": "#E45756"}
     latency_points = _prepare_latency_points(research_requests)
     if latency_points is None:
         st.warning("Missing `model` or `response_time_seconds` in research data.")
@@ -690,7 +690,7 @@ def _render_latency_chart(research_requests: pd.DataFrame) -> None:
         },
         points=False,
         color="model",
-        color_discrete_map=MODEL_COLORS,
+        color_discrete_map=model_colors,
     )
     fig_latency.update_layout(
         template="simple_white",
