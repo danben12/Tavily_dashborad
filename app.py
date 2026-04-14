@@ -9,7 +9,7 @@ from plotly.subplots import make_subplots
 
 MODEL_COLORS = {"mini": "#72B7B2", "pro": "#E45756"}
 MODEL_COLORS_UPPER = {"MINI": "#72B7B2", "PRO": "#E45756"}
-USER_COLORS = {"Free Users": "#F58518", "Paying Users": "#4C78A8"}
+USER_COLORS = {"Free tier": "#F58518", "Paying users": "#4C78A8"}
 COOLWARM_SCALE = [
     [0.0, "#3B4CC0"],
     [0.2, "#6F92F3"],
@@ -754,14 +754,20 @@ def render_product_analysis_and_cost(
     col3, col4 = st.columns(2)
 
     with col3:
+        user_dist_display = user_dist.copy()
+        user_dist_display["user_type_display"] = (
+            user_dist_display["user_type"]
+            .astype(str)
+            .replace({"Free Users": "Free users", "Paying Users": "Paying users"})
+        )
         fig_user_dist = px.pie(
-            user_dist,
+            user_dist_display,
             values="users",
-            names="user_type",
+            names="user_type_display",
             hole=0.5,
-            title="<b>user base: free vs paying</b>",
-            color="user_type",
-            color_discrete_map=USER_COLORS,
+            title="<b>Free tier and paying users share</b>",
+            color="user_type_display",
+            color_discrete_map={"Free users": "#F58518", "Paying users": "#4C78A8"},
         )
         fig_user_dist.update_layout(
             template="simple_white",
@@ -770,7 +776,7 @@ def render_product_analysis_and_cost(
             legend_title_text="",
         )
         fig_user_dist.update_traces(
-            hovertemplate="%{label}: %{value:,.2f} users<br>share: %{percent:.2%}<extra></extra>"
+            hovertemplate="%{label}: %{value:,.0f}<br>share: %{percent:.2%}<extra></extra>"
         )
         st.plotly_chart(fig_user_dist, use_container_width=True)
 
