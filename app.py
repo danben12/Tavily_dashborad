@@ -1545,6 +1545,12 @@ def render_infrastructure_and_cost_analysis(
             .size()
             .rename(columns={"size": "hours_count"})
         )
+        total_hours_count = int(activity_counts["hours_count"].sum())
+        activity_counts["hours_share_pct"] = (
+            100.0 * activity_counts["hours_count"] / total_hours_count
+            if total_hours_count > 0
+            else 0.0
+        )
         activity_order = [
             "Hours with Research API activity",
             "Hours without Research API activity",
@@ -1552,21 +1558,26 @@ def render_infrastructure_and_cost_analysis(
         fig_activity = px.bar(
             activity_counts,
             x="activity_status",
-            y="hours_count",
+            y="hours_share_pct",
             title="Hours with and without Research API activity",
-            labels={"activity_status": "Activity status", "hours_count": "Hours count"},
+            labels={"activity_status": "Activity status", "hours_share_pct": "Share of all hours (%)"},
             category_orders={"activity_status": activity_order},
             color="activity_status",
             color_discrete_map={
                 "Hours with Research API activity": "#4C78A8",
                 "Hours without Research API activity": "#E45756",
             },
-            text=activity_counts["hours_count"].map(lambda v: f"{v:,.0f}"),
+            text=activity_counts["hours_share_pct"].map(lambda v: f"{v:.1f}%"),
+            custom_data=["hours_count"],
         )
         fig_activity.update_traces(
             textposition="outside",
             cliponaxis=False,
-            hovertemplate="Activity status: %{x}<br>Hours count: %{y:,.0f}<extra></extra>",
+            hovertemplate=(
+                "Activity status: %{x}<br>"
+                "Share of all hours: %{y:.1f}%<br>"
+                "Hours count: %{customdata[0]:,.0f}<extra></extra>"
+            ),
         )
         fig_activity.update_layout(
             template="simple_white",
