@@ -530,11 +530,10 @@ def _render_product_top_metrics(
     st.markdown(
         """
         <style>
-        div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div [data-testid="stMetricValue"] {
+        div[data-testid="stVerticalBlock"]:has(.metrics-row-good) [data-testid="stMetricValue"] {
             color: #7DB7FF !important;
         }
-        div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div [data-testid="stMetricValue"],
-        div[data-testid="stHorizontalBlock"]:nth-of-type(3) > div [data-testid="stMetricValue"] {
+        div[data-testid="stVerticalBlock"]:has(.metrics-row-bad) [data-testid="stMetricValue"] {
             color: #E45756 !important;
         }
         </style>
@@ -542,61 +541,65 @@ def _render_product_top_metrics(
         unsafe_allow_html=True,
     )
 
-    m1, m2, m3 = st.columns(3)
-    with m1:
-        st.metric(
-            "Research API users acquisition percentage",
-            f"{acquisition_pct:.2f}%",
-            help=(
-                "out of 16,324 total users, 12,895 joined on/after Nov 1, 2025. "
-                "out of them, 12,006 had at least one activity after their join date. "
-                "out of those active new users, 2,270 used the Research API as their first activity."
-            ),
-        )
-    with m2:
-        st.metric(
-            "Success rate",
-            f"{success_rate_pct:.2f}%",
-            help=(
-                "share of research API requests with status success. "
-                f"total success requests: {success_request_count:,}."
-            ),
-        )
-    with m3:
-        st.metric(
-            "Non-streaming cancellation rate",
-            f"{non_streaming_cancellation_rate_pct:.2f}%",
-            help=(
-                f"cancelled requests: {non_streaming_cancelled_requests:,} "
-                f"out of {non_streaming_total_requests:,} non-streaming requests."
-            ),
-        )
+    with st.container():
+        st.markdown('<span class="metrics-row-good"></span>', unsafe_allow_html=True)
+        m1, m2, m3 = st.columns(3)
+        with m1:
+            st.metric(
+                "Research API users acquisition percentage",
+                f"{acquisition_pct:.2f}%",
+                help=(
+                    "out of 16,324 total users, 12,895 joined on/after Nov 1, 2025. "
+                    "out of them, 12,006 had at least one activity after their join date. "
+                    "out of those active new users, 2,270 used the Research API as their first activity."
+                ),
+            )
+        with m2:
+            st.metric(
+                "Success rate",
+                f"{success_rate_pct:.2f}%",
+                help=(
+                    "share of research API requests with status success. "
+                    f"total success requests: {success_request_count:,}."
+                ),
+            )
+        with m3:
+            st.metric(
+                "Non-streaming cancellation rate",
+                f"{non_streaming_cancellation_rate_pct:.2f}%",
+                help=(
+                    f"cancelled requests: {non_streaming_cancelled_requests:,} "
+                    f"out of {non_streaming_total_requests:,} non-streaming requests."
+                ),
+            )
 
-    m4, m5, m6 = st.columns(3)
-    with m4:
-        st.metric(
-            "Total requests costs",
-            _format_compact_cost(total_request_cost),
-            help="sum of all research API request costs.",
-        )
-    with m5:
-        st.metric(
-            "Cancellation rate",
-            f"{cancellation_rate_pct:.2f}%",
-            help=(
-                "share of research API requests with status cancelled. "
-                f"total cancelled requests: {cancelled_request_count:,}."
-            ),
-        )
-    with m6:
-        st.metric(
-            "Streaming cancellation rate",
-            f"{streaming_cancellation_rate_pct:.2f}%",
-            help=(
-                f"cancelled requests: {streaming_cancelled_requests:,} "
-                f"out of {streaming_total_requests:,} streaming requests."
-            ),
-        )
+    with st.container():
+        st.markdown('<span class="metrics-row-bad"></span>', unsafe_allow_html=True)
+        m4, m5, m6 = st.columns(3)
+        with m4:
+            st.metric(
+                "Total requests costs",
+                _format_compact_cost(total_request_cost),
+                help="sum of all research API request costs.",
+            )
+        with m5:
+            st.metric(
+                "Cancellation rate",
+                f"{cancellation_rate_pct:.2f}%",
+                help=(
+                    "share of research API requests with status cancelled. "
+                    f"total cancelled requests: {cancelled_request_count:,}."
+                ),
+            )
+        with m6:
+            st.metric(
+                "Streaming cancellation rate",
+                f"{streaming_cancellation_rate_pct:.2f}%",
+                help=(
+                    f"cancelled requests: {streaming_cancelled_requests:,} "
+                    f"out of {streaming_total_requests:,} streaming requests."
+                ),
+            )
 
 
 def _render_abandonment_chart(lifecycle: pd.DataFrame) -> None:
