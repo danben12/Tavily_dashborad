@@ -706,11 +706,11 @@ def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame, eco
     st.caption(
         "Free users currently generate substantial spend on the Pro model. "
         f"They made {free_pro_requests_compact} Pro requests at about "
-        f"${economics_summary['free_pro_avg_cost']:,.0f} per request, creating roughly "
-        f"${total_pro_cost_free_compact} in direct cost. "
-        f"If those requests were routed to Mini (about ${economics_summary['mini_avg_cost']:,.0f} per request), "
-        f"cost would be about ${economics_summary['hypothetical_mini_cost']:,.2f}, "
-        f"with potential savings of about ${economics_summary['potential_savings']:,.2f}."
+        f"\\${economics_summary['free_pro_avg_cost']:,.0f} per request, creating roughly "
+        f"\\${total_pro_cost_free_compact} in direct cost. "
+        f"If those requests were routed to Mini (about \\${economics_summary['mini_avg_cost']:,.0f} per request), "
+        f"cost would be about \\${economics_summary['hypothetical_mini_cost']:,.2f}, "
+        f"with potential savings of about \\${economics_summary['potential_savings']:,.2f}."
     )
 
 
