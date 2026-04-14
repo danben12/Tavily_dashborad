@@ -612,7 +612,7 @@ def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> 
         x="model",
         y="request_cost",
         title="<b>Request cost distribution by model</b>",
-        labels={"model": "model", "request_cost": "average request cost ($)"},
+        labels={"model": "Model", "request_cost": "Request cost"},
         color="model",
         color_discrete_map=model_colors_upper,
         points=False,
