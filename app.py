@@ -1672,11 +1672,33 @@ def render_infrastructure_and_cost_analysis(
         without_activity_pct = (
             (100.0 * without_activity / total_hours_count) if total_hours_count > 0 else 0.0
         )
-        st.caption(
+        zero_traffic_burn = None
+        if "infra_eks_research_cluster" in infra_l.columns:
+            zero_traffic_hours = hourly_research_presence.loc[
+                hourly_research_presence["research_requests"].le(0), "hour"
+            ]
+            cluster_cost = infra_l[["hour", "infra_eks_research_cluster"]].copy()
+            cluster_cost["infra_eks_research_cluster"] = pd.to_numeric(
+                cluster_cost["infra_eks_research_cluster"], errors="coerce"
+            ).fillna(0.0)
+            zero_traffic_burn = float(
+                cluster_cost.merge(
+                    zero_traffic_hours.to_frame(name="hour"),
+                    on="hour",
+                    how="inner",
+                )["infra_eks_research_cluster"].sum()
+            )
+        caption_text = (
             f"This chart shows how often the Research API cluster is active across all measured hours. "
             f"{with_activity:,.0f} hours ({with_activity_pct:.1f}%) had Research API traffic, while "
             f"{without_activity:,.0f} hours ({without_activity_pct:.1f}%) had no Research API traffic."
         )
+        if zero_traffic_burn is not None:
+            caption_text += (
+                f" Yet the cluster continued running at full capacity, burning an estimated "
+                f"${zero_traffic_burn:,.0f} on zero-traffic hours."
+            )
+        st.caption(caption_text)
 
 
 def main() -> None:
