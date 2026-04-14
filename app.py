@@ -1374,14 +1374,6 @@ def render_infrastructure_and_cost_analysis(
         )
 
     with col2:
-        s1, s2, s3 = st.columns(3)
-        with s1:
-            st.metric("Min hourly infra cost", f"${hourly_min:,.0f}")
-        with s2:
-            st.metric("Median hourly infra cost", f"${hourly_median:,.0f}")
-        with s3:
-            st.metric("Max hourly infra cost", f"${hourly_max:,.0f}")
-
         fig_stability = px.box(
             hourly_stability,
             y="infra_total",
