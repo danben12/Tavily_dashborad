@@ -1289,6 +1289,7 @@ def render_infrastructure_and_cost_analysis(
     infra_growth_pct = _growth_pct(infra_start, infra_end)
     users_growth_ratio = _growth_ratio(user_start, user_end)
     requests_growth_ratio = _growth_ratio(req_start, req_end)
+    infra_growth_ratio = _growth_ratio(infra_start, infra_end)
 
     k1, g1, g2, g3 = st.columns(4)
     with k1:
@@ -1321,9 +1322,11 @@ def render_infrastructure_and_cost_analysis(
     with g3:
         st.metric(
             "Infrastructure growth (Nov to Mar)",
-            _format_k_cost(infra_end),
-            delta=f"+{infra_growth_pct:.1f}%",
-            help=f"Monthly infrastructure cost grew from ${infra_start:,.0f} in Nov 2025 to ${infra_end:,.0f} in Mar 2026.",
+            f"X{infra_growth_ratio:.1f}",
+            help=(
+                f"Ratio of monthly infrastructure cost in Mar 2026 vs Nov 2025 "
+                f"({_format_k_cost(infra_end)} vs {_format_k_cost(infra_start)})."
+            ),
         )
 
     col1, col2 = st.columns(2)
