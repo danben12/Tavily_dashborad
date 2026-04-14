@@ -296,7 +296,7 @@ def _format_compact_cost(value: float) -> str:
 
 
 def _format_k_cost(value: float) -> str:
-    return f"${value / 1_000:.1f}K"
+    return f"${value / 1_000:.2f}K"
 
 
 # ------------------------------
@@ -1271,11 +1271,6 @@ def render_infrastructure_and_cost_analysis(
         infra_start = float(infra_monthly.get(growth_start, 0.0))
         infra_end = float(infra_monthly.get(growth_end, 0.0))
 
-    def _growth_pct(start_value: float, end_value: float) -> float:
-        if start_value <= 0:
-            return 0.0
-        return 100.0 * ((end_value - start_value) / start_value)
-
     def _growth_ratio(start_value: float, end_value: float) -> float:
         if start_value <= 0:
             return 0.0
@@ -1284,9 +1279,6 @@ def render_infrastructure_and_cost_analysis(
     def _format_m_count(value: float) -> str:
         return f"{value / 1_000_000:.1f}M"
 
-    users_growth_pct = _growth_pct(user_start, user_end)
-    requests_growth_pct = _growth_pct(req_start, req_end)
-    infra_growth_pct = _growth_pct(infra_start, infra_end)
     users_growth_ratio = _growth_ratio(user_start, user_end)
     requests_growth_ratio = _growth_ratio(req_start, req_end)
     infra_growth_ratio = _growth_ratio(infra_start, infra_end)
@@ -1304,7 +1296,7 @@ def render_infrastructure_and_cost_analysis(
     with g1:
         st.metric(
             "New users growth (Nov to Mar)",
-            f"X{users_growth_ratio:.1f}",
+            f"X{users_growth_ratio:.2f}",
             help=(
                 f"Ratio of monthly new users in Mar 2026 vs Nov 2025 "
                 f"({user_end:,.0f} vs {user_start:,.0f})."
@@ -1313,7 +1305,7 @@ def render_infrastructure_and_cost_analysis(
     with g2:
         st.metric(
             "Requests growth (Nov to Mar)",
-            f"X{requests_growth_ratio:.1f}",
+            f"X{requests_growth_ratio:.2f}",
             help=(
                 f"Ratio of monthly requests in Mar 2026 vs Nov 2025 "
                 f"({_format_m_count(req_end)} vs {_format_m_count(req_start)})."
@@ -1322,7 +1314,7 @@ def render_infrastructure_and_cost_analysis(
     with g3:
         st.metric(
             "Infrastructure growth (Nov to Mar)",
-            f"X{infra_growth_ratio:.1f}",
+            f"X{infra_growth_ratio:.2f}",
             help=(
                 f"Ratio of monthly infrastructure cost in Mar 2026 vs Nov 2025 "
                 f"({_format_k_cost(infra_end)} vs {_format_k_cost(infra_start)})."
