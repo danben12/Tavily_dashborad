@@ -67,36 +67,46 @@ def _lowercase_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _build_hourly_lifecycle(users: pd.DataFrame, hourly_usage: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    # Normalize column names early so all downstream checks/use are case-robust.
     users_l = _lowercase_columns(users)
     hourly_l = _lowercase_columns(hourly_usage)
+
+    # Ensure the minimal fields needed for lifecycle construction exist.
     required_users = {"user_id", "created_at"}
     required_hourly = {"user_id", "hour", "request_type"}
     if not required_users.issubset(users_l.columns) or not required_hourly.issubset(hourly_l.columns):
         return pd.DataFrame(), 0
 
+    # Keep only required user columns and coerce types.
     users_l = users_l[["user_id", "created_at"]].copy()
     users_l["created_at"] = pd.to_datetime(users_l["created_at"], errors="coerce", utc=True)
     users_l["user_id"] = pd.to_numeric(users_l["user_id"], errors="coerce")
+    # Drop invalid rows before casting to integer ids.
     users_l = users_l.dropna(subset=["user_id", "created_at"]).copy()
     users_l["user_id"] = users_l["user_id"].astype(int)
 
+    # Limit acquisition cohort to users created from product launch window onward.
     nov_start = pd.Timestamp("2025-11-01", tz="UTC")
     new_users = users_l.loc[users_l["created_at"] >= nov_start, ["user_id", "created_at"]].drop_duplicates(
         subset=["user_id"]
     )
 
+    # Prepare hourly usage rows with normalized types.
     hourly_l = hourly_l[["user_id", "hour", "request_type"]].copy()
     hourly_l["hour"] = pd.to_datetime(hourly_l["hour"], errors="coerce", utc=True)
     hourly_l["user_id"] = pd.to_numeric(hourly_l["user_id"], errors="coerce")
     hourly_l = hourly_l.dropna(subset=["user_id", "hour"]).copy()
     hourly_l["user_id"] = hourly_l["user_id"].astype(int)
 
+    # Keep only events for cohort users and only activity after signup timestamp.
     valid_events = new_users.merge(hourly_l, on="user_id", how="inner")
     valid_events = valid_events.loc[valid_events["hour"] >= valid_events["created_at"]].copy()
+    # Sort to make "first" and "last" operations deterministic.
     valid_events = valid_events.sort_values(["user_id", "hour"]).reset_index(drop=True)
     if valid_events.empty:
         return pd.DataFrame(), int(new_users["user_id"].nunique())
 
+    # Build first-touch and last-touch event views per user.
     first_actions = (
         valid_events.groupby("user_id", as_index=False)
         .first()[["user_id", "hour", "request_type"]]
@@ -107,11 +117,14 @@ def _build_hourly_lifecycle(users: pd.DataFrame, hourly_usage: pd.DataFrame) -> 
         .last()[["user_id", "hour"]]
         .rename(columns={"hour": "last_event_ts"})
     )
+
+    # Merge first/last touches and enrich with per-user activity depth.
     lifecycle = first_actions.merge(last_actions, on="user_id", how="inner")
     lifecycle["first_source"] = lifecycle["first_source"].astype(str).str.strip().str.lower()
     usage_row_counts = valid_events.groupby("user_id").size().reset_index(name="usage_row_count")
     lifecycle = lifecycle.merge(usage_row_counts, on="user_id", how="left")
     lifecycle["usage_row_count"] = lifecycle["usage_row_count"].fillna(0).astype(int)
+    # "single_row_only" is the abandonment proxy used by chart 1.
     lifecycle["single_row_only"] = lifecycle["usage_row_count"].eq(1)
     return lifecycle, int(new_users["user_id"].nunique())
 
@@ -128,6 +141,7 @@ def _single_row_no_return_by_first_request(lifecycle: pd.DataFrame) -> pd.DataFr
                 "pct_single_row",
             ]
         )
+    # Convert boolean target into an explicit aggregation-safe column.
     tmp = lifecycle.assign(_single=lifecycle["single_row_only"].astype(bool))
     out = (
         tmp.groupby("first_source", as_index=False)
@@ -135,6 +149,7 @@ def _single_row_no_return_by_first_request(lifecycle: pd.DataFrame) -> pd.DataFr
         .sort_values("user_count", ascending=False)
         .reset_index(drop=True)
     )
+    # Derive abandonment percentage per first-touch request type.
     out["single_row_count"] = out["single_row_count"].astype(int)
     out["pct_single_row"] = 100.0 * out["single_row_count"] / out["user_count"]
     out["first_request_label"] = out["first_source"].astype(str).str.lower()
@@ -144,13 +159,17 @@ def _single_row_no_return_by_first_request(lifecycle: pd.DataFrame) -> pd.DataFr
 def _prepare_user_and_cost_breakdowns(
     users: pd.DataFrame, research_requests: pd.DataFrame
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame] | None:
+    # Normalize inputs so all downstream column access is stable.
     users_l = _lowercase_columns(users)
     rr = _lowercase_columns(research_requests)
+
+    # Validate required columns for user segmentation and request-cost charts.
     required_users = {"user_id", "has_paygo", "plan"}
     required_rr = {"user_id", "model", "request_cost"}
     if not required_users.issubset(users_l.columns) or not required_rr.issubset(rr.columns):
         return None
 
+    # Build canonical user table with paying/free classification.
     users_l = users_l.copy()
     users_l["user_id"] = pd.to_numeric(users_l["user_id"], errors="coerce")
     users_l = users_l.dropna(subset=["user_id"]).copy()
@@ -165,6 +184,7 @@ def _prepare_user_and_cost_breakdowns(
         {True: "Paying Users", False: "Free Users"}
     )
 
+    # Clean research requests for cost modeling.
     rr = rr.copy()
     rr["user_id"] = pd.to_numeric(rr["user_id"], errors="coerce")
     rr["request_cost"] = pd.to_numeric(rr["request_cost"], errors="coerce")
@@ -172,20 +192,24 @@ def _prepare_user_and_cost_breakdowns(
     rr["user_id"] = rr["user_id"].astype(int)
     rr["model"] = rr["model"].astype(str).str.strip().str.lower()
 
+    # Join request rows with user segments so we can slice by user_type/model.
     merged = rr.merge(
         users_l[["user_id", "is_paying_user", "user_type"]], on="user_id", how="left"
     )
     merged["is_paying_user"] = merged["is_paying_user"].fillna(False).astype(bool)
     merged["user_type"] = merged["user_type"].fillna("Free Users")
 
+    # Dataset for chart 3: user base split (free vs paying).
     user_dist = (
         users_l.drop_duplicates(subset=["user_id"])
         .groupby("user_type", as_index=False)["user_id"]
         .nunique()
         .rename(columns={"user_id": "users"})
     )
+    # Dataset for chart 4: request cost distribution per model.
     request_cost_dist = rr[rr["model"].isin(["mini", "pro"])][["model", "request_cost"]].copy()
     request_cost_dist["model"] = request_cost_dist["model"].str.upper()
+    # Dataset for chart 5: total request cost by model and user segment.
     cost_by_model_user = (
         merged.groupby(["model", "user_type"], as_index=False)["request_cost"].sum()
     )
@@ -194,19 +218,23 @@ def _prepare_user_and_cost_breakdowns(
 
 
 def _prepare_pareto(research_requests: pd.DataFrame) -> tuple[pd.DataFrame, float] | None:
+    # Normalize and validate the user_id key.
     rr = _lowercase_columns(research_requests)
     if "user_id" not in rr.columns:
         return None
     rr["user_id"] = pd.to_numeric(rr["user_id"], errors="coerce")
     rr = rr.dropna(subset=["user_id"]).copy()
     rr["user_id"] = rr["user_id"].astype(int)
+    # Count request volume per user and sort descending for Pareto accumulation.
     counts = rr.groupby("user_id").size().sort_values(ascending=False)
     if counts.empty:
         return None
 
+    # Build cumulative share curve of traffic over cumulative users.
     pareto = pd.DataFrame({"requests": counts.values})
     pareto["cum_requests_pct"] = 100.0 * pareto["requests"].cumsum() / pareto["requests"].sum()
     pareto["cum_users_pct"] = 100.0 * (pareto.index + 1) / len(pareto)
+    # Prefix (0,0) point so the curve starts at origin.
     pareto = pd.concat(
         [
             pd.DataFrame({"cum_users_pct": [0.0], "cum_requests_pct": [0.0]}),
@@ -214,6 +242,7 @@ def _prepare_pareto(research_requests: pd.DataFrame) -> tuple[pd.DataFrame, floa
         ],
         ignore_index=True,
     )
+    # Read the y-value at first point where cumulative users reaches 5%.
     y_at_5 = float(
         pareto.loc[pareto["cum_users_pct"] >= 5.0, "cum_requests_pct"].head(1).fillna(0.0).iloc[0]
     )
@@ -221,11 +250,13 @@ def _prepare_pareto(research_requests: pd.DataFrame) -> tuple[pd.DataFrame, floa
 
 
 def _prepare_latency_points(research_requests: pd.DataFrame) -> pd.DataFrame | None:
+    # Keep only the fields required for model latency box plots.
     rr = _lowercase_columns(research_requests)
     if not {"model", "response_time_seconds"}.issubset(rr.columns):
         return None
     rr["model"] = rr["model"].astype(str).str.lower().str.strip()
     rr["response_time_seconds"] = pd.to_numeric(rr["response_time_seconds"], errors="coerce")
+    # Chart uses only mini/pro model rows with valid numeric latency.
     return rr[rr["model"].isin(["mini", "pro"])].dropna(subset=["response_time_seconds"])
 
 
@@ -256,10 +287,12 @@ def _prepare_finops_data(
     hourly_usage: pd.DataFrame,
     research_requests: pd.DataFrame,
 ) -> tuple[dict, pd.DataFrame, pd.DataFrame, pd.DataFrame] | None:
+    # Normalize all inputs before schema checks and numeric coercion.
     infra = _lowercase_columns(infrastructure_costs)
     hourly = _lowercase_columns(hourly_usage)
     rr = _lowercase_columns(research_requests)
 
+    # We need hourly infrastructure data plus infra/model cost columns.
     if "hour" not in infra.columns:
         return None
     infra_cols = [c for c in infra.columns if c.startswith("infra_")]
@@ -267,18 +300,21 @@ def _prepare_finops_data(
     if not infra_cols or not model_cols:
         return None
 
+    # Parse timestamp and coerce all cost components to numeric.
     infra = infra.copy()
     infra["hour"] = pd.to_datetime(infra["hour"], errors="coerce", utc=True)
     infra = infra.dropna(subset=["hour"]).copy()
     for col in infra_cols + model_cols:
         infra[col] = pd.to_numeric(infra[col], errors="coerce").fillna(0.0)
 
+    # Derive total infra/model/hourly cost and page-level KPI totals.
     infra["infra_total_cost"] = infra[infra_cols].sum(axis=1)
     infra["ai_total_cost"] = infra[model_cols].sum(axis=1)
     infra["total_hourly_cost"] = infra["infra_total_cost"] + infra["ai_total_cost"]
     total_hardware_cost = float(infra["infra_total_cost"].sum())
     total_ai_cost = float(infra["ai_total_cost"].sum())
 
+    # Build day-level aggregation and day/hour heatmap source.
     infra["day"] = infra["hour"].dt.floor("d")
     infra["day_of_week"] = infra["hour"].dt.day_name()
     infra["hour_of_day"] = infra["hour"].dt.hour
@@ -295,6 +331,7 @@ def _prepare_finops_data(
         .rename(columns={"infra_total_cost": "mean_infra_cost"})
     )
 
+    # Build daily request volume either from hourly_usage or research timestamps fallback.
     if {"hour", "request_count"}.issubset(hourly.columns):
         hourly_r = hourly.copy()
         hourly_r["hour"] = pd.to_datetime(hourly_r["hour"], errors="coerce", utc=True)
@@ -311,6 +348,7 @@ def _prepare_finops_data(
     else:
         return None
 
+    # Join daily cost and request views into a unified time series.
     daily_agg = infra_daily.merge(req_daily, on="day", how="outer")
     daily_agg["infra_total_cost"] = pd.to_numeric(
         daily_agg["infra_total_cost"], errors="coerce"
@@ -322,10 +360,12 @@ def _prepare_finops_data(
         daily_agg["total_requests"], errors="coerce"
     ).fillna(0.0)
     daily_agg = daily_agg.sort_values("day").reset_index(drop=True)
+    # Drop last partial day to avoid incomplete-day distortion.
     if not daily_agg.empty:
         last_day = daily_agg["day"].max()
         daily_agg = daily_agg[daily_agg["day"] < last_day].copy()
 
+    # Prepare monthly rollup for potential future use.
     daily_agg["month"] = daily_agg["day"].dt.tz_convert(None).dt.to_period("M").dt.to_timestamp()
     monthly_agg = (
         daily_agg.groupby("month", as_index=False)[
@@ -336,6 +376,7 @@ def _prepare_finops_data(
     )
     monthly_agg["month_label"] = monthly_agg["month"].dt.strftime("%Y-%m")
 
+    # Compute dead-day waste KPI: cost on days with zero requests.
     dead_days = daily_agg[daily_agg["total_requests"].eq(0)].copy()
     wasted_zero_traffic_cost = float(dead_days["total_daily_cost"].sum())
     dead_days_count = int(len(dead_days))
