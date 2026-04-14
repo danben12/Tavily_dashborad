@@ -408,7 +408,7 @@ def _prepare_finops_data(
 
 def _prepare_cancellation_chart_data(
     research_requests: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame] | None:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict[str, float | int]] | None:
     rr = _lowercase_columns(research_requests)
     required_cols = {
         "status",
@@ -429,6 +429,7 @@ def _prepare_cancellation_chart_data(
     rr["credits_used"] = pd.to_numeric(rr["credits_used"], errors="coerce")
     rr["request_cost"] = pd.to_numeric(rr["request_cost"], errors="coerce")
     rr["is_cancelled"] = _is_cancelled_status(rr["status"])
+    rr["stream_flag"] = _is_true_stream(rr["stream"])
     human_ui = rr[_is_true_stream(rr["stream"])].copy()
     human_ui = human_ui.dropna(subset=["response_time_seconds"])
     human_ui["duration_group"] = human_ui["response_time_seconds"].apply(
@@ -482,7 +483,31 @@ def _prepare_cancellation_chart_data(
         .size()
         .rename(columns={"size": "requests"})
     )
-    return wait_effect, inefficiency_long, billing_dist
+
+    stream_summary = (
+        rr.groupby("stream_flag", as_index=False)
+        .agg(total_requests=("is_cancelled", "size"), cancelled_requests=("is_cancelled", "sum"))
+        .copy()
+    )
+    stream_summary["cancellation_rate_pct"] = (
+        100.0 * stream_summary["cancelled_requests"] / stream_summary["total_requests"].clip(lower=1)
+    )
+    stream_metrics = {
+        "streaming_total_requests": 0,
+        "streaming_cancelled_requests": 0,
+        "streaming_cancellation_rate_pct": 0.0,
+        "non_streaming_total_requests": 0,
+        "non_streaming_cancelled_requests": 0,
+        "non_streaming_cancellation_rate_pct": 0.0,
+    }
+    for _, row in stream_summary.iterrows():
+        is_streaming = bool(row["stream_flag"])
+        prefix = "streaming" if is_streaming else "non_streaming"
+        stream_metrics[f"{prefix}_total_requests"] = int(row["total_requests"])
+        stream_metrics[f"{prefix}_cancelled_requests"] = int(row["cancelled_requests"])
+        stream_metrics[f"{prefix}_cancellation_rate_pct"] = float(row["cancellation_rate_pct"])
+
+    return wait_effect, inefficiency_long, billing_dist, stream_metrics
 
 
 # -----------------------------------------------------
@@ -921,6 +946,30 @@ def _render_cancellation_rate_by_wait_time_chart(wait_effect: pd.DataFrame) -> N
     st.plotly_chart(fig_wait, use_container_width=True)
 
 
+def _render_streaming_vs_non_streaming_cancel_kpis(
+    stream_metrics: dict[str, float | int],
+) -> None:
+    k1, k2 = st.columns(2)
+    with k1:
+        st.metric(
+            "Streaming cancellation rate",
+            f"{float(stream_metrics['streaming_cancellation_rate_pct']):.2f}%",
+            help=(
+                f"cancelled requests: {int(stream_metrics['streaming_cancelled_requests']):,} "
+                f"out of {int(stream_metrics['streaming_total_requests']):,} streaming requests."
+            ),
+        )
+    with k2:
+        st.metric(
+            "Non-streaming cancellation rate",
+            f"{float(stream_metrics['non_streaming_cancellation_rate_pct']):.2f}%",
+            help=(
+                f"cancelled requests: {int(stream_metrics['non_streaming_cancelled_requests']):,} "
+                f"out of {int(stream_metrics['non_streaming_total_requests']):,} non-streaming requests."
+            ),
+        )
+
+
 def _render_technical_inefficiency_by_wait_time_chart(inefficiency_long: pd.DataFrame) -> None:
     fig_ineff = px.bar(
         inefficiency_long,
@@ -1051,8 +1100,9 @@ def render_product_analysis(
         if prepared is None:
             st.warning("Missing required columns for Q3 cancellation analysis.")
         else:
-            wait_effect, inefficiency_long, billing_dist = prepared
+            wait_effect, inefficiency_long, billing_dist, stream_metrics = prepared
             _render_cancellation_rate_by_wait_time_chart(wait_effect)
+            _render_streaming_vs_non_streaming_cancel_kpis(stream_metrics)
 
     # 8-9) cancellation diagnostics side by side
     if prepared is not None:
