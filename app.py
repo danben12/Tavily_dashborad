@@ -856,7 +856,7 @@ def _render_cancelled_response_time_histogram(research_requests: pd.DataFrame) -
         font=dict(size=13),
         margin=dict(t=60, b=40, l=30, r=30),
     )
-    fig_cancelled_hist.update_xaxes(title_text="Response time (seconds)")
+    fig_cancelled_hist.update_xaxes(title_text="Response time (seconds)", dtick=30)
     fig_cancelled_hist.update_yaxes(title_text="Cancelled requests")
     fig_cancelled_hist.add_vline(x=90.0, line_dash="dash", line_color="#E45756", line_width=2)
     st.plotly_chart(fig_cancelled_hist, use_container_width=True)
