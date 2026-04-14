@@ -1529,13 +1529,10 @@ def render_infrastructure_and_cost_analysis(
         .rename(columns={"day_of_week": "day", "hour_of_day": "hour"})
     )
     if not heatmap_long.empty:
-        peak_row = heatmap_long.loc[heatmap_long["mean_infrastructure_cost"].idxmax()]
-        trough_row = heatmap_long.loc[heatmap_long["mean_infrastructure_cost"].idxmin()]
         st.caption(
             f"This heatmap shows average hourly infrastructure cost by weekday and hour. "
-            f"The highest average appears on {peak_row['day']} at {int(peak_row['hour']):02d}:00 "
-            f"({peak_row['mean_infrastructure_cost']:.2f}), while the lowest appears on {trough_row['day']} "
-            f"at {int(trough_row['hour']):02d}:00 ({trough_row['mean_infrastructure_cost']:.2f})."
+            "There is a cyclical pattern in infrastructure cost, showing that nights and weekends "
+            "tend to have lower mean infrastructure costs."
         )
 
     hourly_activity = _lowercase_columns(hourly_usage).copy()
