@@ -1485,7 +1485,7 @@ def render_infrastructure_and_cost_analysis(
     heatmap_data["hour_of_day"] = pd.to_numeric(
         heatmap_data["hour_of_day"], errors="coerce"
     ).astype("Int64")
-    heatmap_pivot = (
+    cost_heatmap_pivot = (
         heatmap_data.pivot_table(
             index="day_of_week",
             columns="hour_of_day",
@@ -1495,28 +1495,145 @@ def render_infrastructure_and_cost_analysis(
         .reindex(day_order)
         .reindex(columns=list(range(24)))
     )
-    fig_heatmap = px.imshow(
-        heatmap_pivot,
-        labels=dict(x="hour of day", y="day of week", color="mean infra cost ($)"),
-        title="mean infrastructure cost by day of week and hour",
-        color_continuous_scale=coolwarm_scale,
-        aspect="auto",
-    )
-    fig_heatmap.update_traces(
-        hovertemplate=(
-            "day: %{y}<br>"
-            "hour: %{x}:00<br>"
-            "mean infra cost: $%{z:,.2f}<extra></extra>"
+    hourly_heat = _lowercase_columns(hourly_usage).copy()
+    traffic_heatmap_pivot = pd.DataFrame(index=day_order, columns=list(range(24)))
+    if {"hour", "request_count"}.issubset(hourly_heat.columns):
+        hourly_heat["hour"] = pd.to_datetime(hourly_heat["hour"], errors="coerce", utc=True)
+        hourly_heat["request_count"] = pd.to_numeric(hourly_heat["request_count"], errors="coerce").fillna(0.0)
+        hourly_heat = hourly_heat.dropna(subset=["hour"]).copy()
+        hourly_heat["day_of_week"] = hourly_heat["hour"].dt.day_name()
+        hourly_heat["hour_of_day"] = hourly_heat["hour"].dt.hour
+        traffic_heat = (
+            hourly_heat.groupby(["day_of_week", "hour_of_day"], as_index=False)["request_count"]
+            .mean()
+            .rename(columns={"request_count": "mean_traffic"})
         )
-    )
-    fig_heatmap.update_layout(
-        template="simple_white",
-        title_font=dict(size=20),
-        xaxis_title_font=dict(size=14),
-        yaxis_title_font=dict(size=14),
-        font=dict(size=13),
-    )
-    st.plotly_chart(fig_heatmap, use_container_width=True)
+        traffic_heat["day_of_week"] = pd.Categorical(
+            traffic_heat["day_of_week"], categories=day_order, ordered=True
+        )
+        traffic_heat["hour_of_day"] = pd.to_numeric(
+            traffic_heat["hour_of_day"], errors="coerce"
+        ).astype("Int64")
+        traffic_heatmap_pivot = (
+            traffic_heat.pivot_table(
+                index="day_of_week",
+                columns="hour_of_day",
+                values="mean_traffic",
+                aggfunc="mean",
+            )
+            .reindex(day_order)
+            .reindex(columns=list(range(24)))
+        )
+
+    heat_col1, heat_col2 = st.columns(2)
+    with heat_col1:
+        fig_heatmap_cost = px.imshow(
+            cost_heatmap_pivot,
+            labels=dict(x="Hour of day", y="Day of week", color="Mean infra cost ($)"),
+            title="Mean infrastructure cost by day of week and hour",
+            color_continuous_scale=coolwarm_scale,
+            aspect="auto",
+        )
+        fig_heatmap_cost.update_traces(
+            hovertemplate=(
+                "Day: %{y}<br>"
+                "Hour: %{x}:00<br>"
+                "Mean infra cost: $%{z:,.2f}<extra></extra>"
+            )
+        )
+        fig_heatmap_cost.update_layout(
+            template="simple_white",
+            title_font=dict(size=20),
+            xaxis_title_font=dict(size=14),
+            yaxis_title_font=dict(size=14),
+            font=dict(size=13),
+        )
+        st.plotly_chart(fig_heatmap_cost, use_container_width=True)
+
+    with heat_col2:
+        fig_heatmap_traffic = px.imshow(
+            traffic_heatmap_pivot,
+            labels=dict(x="Hour of day", y="Day of week", color="Mean traffic (requests)"),
+            title="Mean traffic by day of week and hour",
+            color_continuous_scale=coolwarm_scale,
+            aspect="auto",
+        )
+        fig_heatmap_traffic.update_traces(
+            hovertemplate=(
+                "Day: %{y}<br>"
+                "Hour: %{x}:00<br>"
+                "Mean traffic: %{z:,.2f}<extra></extra>"
+            )
+        )
+        fig_heatmap_traffic.update_layout(
+            template="simple_white",
+            title_font=dict(size=20),
+            xaxis_title_font=dict(size=14),
+            yaxis_title_font=dict(size=14),
+            font=dict(size=13),
+        )
+        st.plotly_chart(fig_heatmap_traffic, use_container_width=True)
+
+    hourly_activity = _lowercase_columns(hourly_usage).copy()
+    if {"hour", "request_type", "request_count"}.issubset(hourly_activity.columns):
+        hourly_activity["hour"] = pd.to_datetime(hourly_activity["hour"], errors="coerce", utc=True)
+        hourly_activity["request_count"] = pd.to_numeric(
+            hourly_activity["request_count"], errors="coerce"
+        ).fillna(0.0)
+        hourly_activity["request_type"] = hourly_activity["request_type"].astype(str).str.strip().str.lower()
+        hourly_activity = hourly_activity.dropna(subset=["hour"]).copy()
+
+        research_hourly = (
+            hourly_activity.loc[hourly_activity["request_type"].eq("research")]
+            .groupby("hour", as_index=False)["request_count"]
+            .sum()
+            .rename(columns={"request_count": "research_requests"})
+        )
+        all_hours = pd.DataFrame({"hour": hourly_activity["hour"].drop_duplicates().sort_values().to_list()})
+        hourly_research_presence = all_hours.merge(research_hourly, on="hour", how="left")
+        hourly_research_presence["research_requests"] = hourly_research_presence["research_requests"].fillna(0.0)
+        hourly_research_presence["activity_status"] = hourly_research_presence["research_requests"].apply(
+            lambda v: "Hours with Research API activity" if v > 0 else "Hours without Research API activity"
+        )
+
+        activity_counts = (
+            hourly_research_presence.groupby("activity_status", as_index=False)
+            .size()
+            .rename(columns={"size": "hours_count"})
+        )
+        activity_order = [
+            "Hours with Research API activity",
+            "Hours without Research API activity",
+        ]
+        fig_activity = px.bar(
+            activity_counts,
+            x="activity_status",
+            y="hours_count",
+            title="Hours with and without Research API activity",
+            labels={"activity_status": "Activity status", "hours_count": "Hours count"},
+            category_orders={"activity_status": activity_order},
+            color="activity_status",
+            color_discrete_map={
+                "Hours with Research API activity": "#4C78A8",
+                "Hours without Research API activity": "#E45756",
+            },
+            text=activity_counts["hours_count"].map(lambda v: f"{v:,.0f}"),
+        )
+        fig_activity.update_traces(
+            textposition="outside",
+            cliponaxis=False,
+            hovertemplate="Activity status: %{x}<br>Hours count: %{y:,.0f}<extra></extra>",
+        )
+        fig_activity.update_layout(
+            template="simple_white",
+            showlegend=False,
+            title_font=dict(size=20),
+            xaxis_title_font=dict(size=14),
+            yaxis_title_font=dict(size=14),
+            font=dict(size=13),
+            margin=dict(t=60, b=40, l=30, r=30),
+        )
+        st.plotly_chart(fig_activity, use_container_width=True)
 
 
 def main() -> None:
