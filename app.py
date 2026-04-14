@@ -533,8 +533,6 @@ def _render_product_top_metrics(
         value: str,
         help_text: str,
         value_color: str,
-        bg_color: str,
-        border_color: str,
     ) -> None:
         safe_title = html.escape(title)
         safe_value = html.escape(value)
@@ -542,10 +540,7 @@ def _render_product_top_metrics(
         st.markdown(
             f"""
             <div title="{safe_help}" style="
-                background-color: {bg_color};
-                border: 1px solid {border_color};
-                border-radius: 8px;
-                padding: 10px 12px;
+                padding: 4px 2px;
             ">
                 <div style="font-size: 14px; color: #FAFAFA; margin-bottom: 8px;">{safe_title}</div>
                 <div style="font-size: 36px; line-height: 1.1; color: {value_color};">{safe_value}</div>
@@ -565,8 +560,6 @@ def _render_product_top_metrics(
                 "out of those active new users, 2,270 used the Research API as their first activity."
             ),
             value_color="#7DB7FF",
-            bg_color="rgba(125, 183, 255, 0.10)",
-            border_color="rgba(125, 183, 255, 0.45)",
         )
     with m2:
         _render_metric_card(
@@ -577,8 +570,6 @@ def _render_product_top_metrics(
                 f"total success requests: {success_request_count:,}."
             ),
             value_color="#7DB7FF",
-            bg_color="rgba(125, 183, 255, 0.10)",
-            border_color="rgba(125, 183, 255, 0.45)",
         )
     with m3:
         _render_metric_card(
@@ -589,8 +580,6 @@ def _render_product_top_metrics(
                 f"out of {non_streaming_total_requests:,} non-streaming requests."
             ),
             value_color="#7DB7FF",
-            bg_color="rgba(125, 183, 255, 0.10)",
-            border_color="rgba(125, 183, 255, 0.45)",
         )
 
     m4, m5, m6 = st.columns(3)
@@ -600,8 +589,6 @@ def _render_product_top_metrics(
             value=_format_compact_cost(total_request_cost),
             help_text="sum of all research API request costs.",
             value_color="#E45756",
-            bg_color="rgba(228, 87, 86, 0.12)",
-            border_color="rgba(228, 87, 86, 0.45)",
         )
     with m5:
         _render_metric_card(
@@ -612,8 +599,6 @@ def _render_product_top_metrics(
                 f"total cancelled requests: {cancelled_request_count:,}."
             ),
             value_color="#E45756",
-            bg_color="rgba(228, 87, 86, 0.12)",
-            border_color="rgba(228, 87, 86, 0.45)",
         )
     with m6:
         _render_metric_card(
@@ -624,8 +609,6 @@ def _render_product_top_metrics(
                 f"out of {streaming_total_requests:,} streaming requests."
             ),
             value_color="#E45756",
-            bg_color="rgba(228, 87, 86, 0.12)",
-            border_color="rgba(228, 87, 86, 0.45)",
         )
 
 
