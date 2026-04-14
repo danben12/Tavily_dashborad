@@ -636,12 +636,12 @@ def render_product_analysis_and_cost(
                 for label in no_return_df["first_request_label_display"]
             ]
             worst_row = no_return_df.loc[no_return_df["pct_single_row"].idxmax()]
-            st.caption(
-                "For each platform feature, this chart shows the share of users with only one "
-                "usage after signup. "
-                f"{worst_row['first_request_label_display']} shows the highest abandonment rate "
-                f"({worst_row['pct_single_row']:.2f}%)."
-            )
+            research_row = no_return_df.loc[
+                no_return_df["first_request_label_display"].str.lower().eq("research")
+            ]
+            research_rate_text = f"{worst_row['pct_single_row']:.2f}%"
+            if not research_row.empty:
+                research_rate_text = f"{research_row.iloc[0]['pct_single_row']:.2f}%"
             fig_retention = px.bar(
                 no_return_df,
                 x="first_request_label_display",
@@ -677,6 +677,13 @@ def render_product_analysis_and_cost(
                 yaxis=dict(range=[0, 30]),
             )
             st.plotly_chart(fig_retention, use_container_width=True)
+            st.caption(
+                "This chart analyzes user retention based on the initial platform interaction. "
+                "It shows the abandonment rate, defined as no subsequent engagement after first usage, "
+                "segmented by the first feature used. "
+                f"Notably, the Research feature shows an abandonment rate of {research_rate_text}, "
+                "which is significantly higher than other platform features."
+            )
 
     with col2:
         rr_cols = _lowercase_columns(research_requests)
