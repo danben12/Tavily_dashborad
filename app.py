@@ -1,3 +1,4 @@
+import math
 import zipfile
 from pathlib import Path
 
@@ -266,14 +267,12 @@ def _prepare_pareto(research_requests: pd.DataFrame) -> tuple[pd.DataFrame, floa
 
 
 def _prepare_latency_points(research_requests: pd.DataFrame) -> pd.DataFrame | None:
-    # Keep only the fields required for model latency box plots.
+    # Keep only valid numeric response-time rows for latency distribution chart.
     rr = _lowercase_columns(research_requests)
-    if not {"model", "response_time_seconds"}.issubset(rr.columns):
+    if "response_time_seconds" not in rr.columns:
         return None
-    rr["model"] = rr["model"].astype(str).str.lower().str.strip()
     rr["response_time_seconds"] = pd.to_numeric(rr["response_time_seconds"], errors="coerce")
-    # Chart uses only mini/pro model rows with valid numeric latency.
-    return rr[rr["model"].isin(["mini", "pro"])].dropna(subset=["response_time_seconds"])
+    return rr.dropna(subset=["response_time_seconds"])
 
 
 def _is_true_stream(series: pd.Series) -> pd.Series:
@@ -825,48 +824,39 @@ def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame, eco
 
 
 def _render_latency_chart(research_requests: pd.DataFrame) -> None:
-    model_colors = {"mini": "#2D66AD", "pro": "#D64443"}
     latency_points = _prepare_latency_points(research_requests)
     if latency_points is None:
-        st.warning("Missing `model` or `response_time_seconds` in research data.")
+        st.warning("Missing `response_time_seconds` in research data.")
         return
     if latency_points.empty:
-        st.warning("no usable mini/pro response-time data found.")
+        st.warning("No usable response-time data found.")
         return
 
-    fig_latency = px.box(
-        latency_points,
-        x="model",
-        y="response_time_seconds",
-        title="response time distribution by model (mini vs pro)",
-        labels={
-            "response_time_seconds": "Response time (seconds)",
-            "model": "Model",
-        },
-        points=False,
-        color="model",
-        color_discrete_map=model_colors,
+    max_response_time = float(latency_points["response_time_seconds"].max())
+    histogram_end = max(30.0, math.ceil(max_response_time / 30.0) * 30.0)
+
+    fig_latency = go.Figure(
+        data=[
+            go.Histogram(
+                x=latency_points["response_time_seconds"],
+                xbins=dict(start=0, end=histogram_end, size=30),
+                marker=dict(color="#2D66AD"),
+                hovertemplate="Response time: %{x:.0f} sec<br>Requests: %{y:,.0f}<extra></extra>",
+            )
+        ]
     )
     fig_latency.update_layout(
         template="simple_white",
         showlegend=False,
+        title="response time distribution (30-second buckets)",
         title_font=dict(size=20),
         xaxis_title_font=dict(size=14),
         yaxis_title_font=dict(size=14),
         font=dict(size=13),
-        legend_title_text="",
         margin=dict(t=60, b=40, l=30, r=30),
     )
-    fig_latency.update_traces(
-        hovertemplate=(
-            "model: %{x}<br>"
-            "Q1: %{q1:.2f} sec<br>"
-            "median: %{median:.2f} sec<br>"
-            "Q3: %{q3:.2f} sec<br>"
-            "min: %{lowerfence:.2f} sec<br>"
-            "max: %{upperfence:.2f} sec<extra></extra>"
-        )
-    )
+    fig_latency.update_xaxes(title_text="Response time (seconds)")
+    fig_latency.update_yaxes(title_text="Requests")
     st.plotly_chart(fig_latency, use_container_width=True)
 
 
