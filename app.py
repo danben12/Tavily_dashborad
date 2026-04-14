@@ -623,16 +623,18 @@ def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> 
     )
     fig_avg_cost.update_traces(
         opacity=0.95,
-        line=dict(color="white", width=2),
+        line=dict(width=2),
         hovertemplate="model: %{x}<br>request cost: $%{y:,.2f}<extra></extra>"
     )
     fig_avg_cost.update_traces(
         selector=dict(name="MINI"),
-        fillcolor="rgba(114, 183, 178, 0.95)",
+        fillcolor="rgba(76, 120, 168, 0.95)",
+        line=dict(color="#4C78A8", width=2),
     )
     fig_avg_cost.update_traces(
         selector=dict(name="PRO"),
         fillcolor="rgba(228, 87, 86, 0.95)",
+        line=dict(color="#E45756", width=2),
     )
     fig_avg_cost.update_yaxes(tickprefix="$")
     st.plotly_chart(fig_avg_cost, use_container_width=True)
