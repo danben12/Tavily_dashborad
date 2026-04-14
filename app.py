@@ -1545,14 +1545,25 @@ def render_infrastructure_and_cost_analysis(
         )
         weekend_joined = weekend_req.merge(weekend_total_cost, on="hour", how="inner").dropna()
         if not weekend_joined.empty:
-            weekend_joined["is_weekend"] = weekend_joined["hour"].dt.dayofweek >= 5
-            weekend_rows = weekend_joined.loc[weekend_joined["is_weekend"]]
-            weekday_rows = weekend_joined.loc[~weekend_joined["is_weekend"]]
-            if not weekend_rows.empty and not weekday_rows.empty:
-                weekday_req_mean = float(weekday_rows["total_requests"].mean())
-                weekend_req_mean = float(weekend_rows["total_requests"].mean())
-                weekday_total_cost_mean = float(weekday_rows["total_hourly_cost"].mean())
-                weekend_total_cost_mean = float(weekend_rows["total_hourly_cost"].mean())
+            # Match notebook logic: classify day type and compare means by Weekend vs Weekday.
+            weekend_joined["day_type"] = weekend_joined["hour"].dt.day_name().apply(
+                lambda x: "Weekend" if x in ["Saturday", "Sunday"] else "Weekday"
+            )
+            comparison = (
+                weekend_joined.groupby("day_type", as_index=False)
+                .agg(
+                    total_requests_mean=("total_requests", "mean"),
+                    total_cost_mean=("total_hourly_cost", "mean"),
+                )
+                .copy()
+            )
+            weekend_row = comparison.loc[comparison["day_type"].eq("Weekend")]
+            weekday_row = comparison.loc[comparison["day_type"].eq("Weekday")]
+            if not weekend_row.empty and not weekday_row.empty:
+                weekend_req_mean = float(weekend_row["total_requests_mean"].iloc[0])
+                weekday_req_mean = float(weekday_row["total_requests_mean"].iloc[0])
+                weekend_total_cost_mean = float(weekend_row["total_cost_mean"].iloc[0])
+                weekday_total_cost_mean = float(weekday_row["total_cost_mean"].iloc[0])
                 if weekday_req_mean > 0:
                     weekend_traffic_drop_pct = 100.0 * (1.0 - (weekend_req_mean / weekday_req_mean))
                 if weekday_total_cost_mean > 0:
