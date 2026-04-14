@@ -552,6 +552,18 @@ def _render_user_base_and_request_cost_charts(
             textfont_color="white",
         )
         st.plotly_chart(fig_user_dist, use_container_width=True)
+        total_users = float(user_dist_display["users"].sum())
+        paying_users = float(
+            user_dist_display.loc[
+                user_dist_display["user_type_display"].eq("Paying users"), "users"
+            ].sum()
+        )
+        paying_share = 100.0 * paying_users / total_users if total_users > 0 else 0.0
+        st.caption(
+            "This chart shows the distribution of the user base between free and paying users. "
+            f"Paying users represent about {paying_share:.2f}% of total users, "
+            "which helps frame monetization potential across the platform."
+        )
 
     with col4:
         fig_avg_cost = px.box(
