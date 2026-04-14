@@ -799,6 +799,34 @@ def render_product_analysis_and_cost(
         fig_avg_cost.update_yaxes(tickprefix="$")
         st.plotly_chart(fig_avg_cost, use_container_width=True)
 
+    fig_stacked = px.bar(
+        cost_by_model_user,
+        x="model",
+        y="request_cost",
+        color="user_type",
+        barmode="stack",
+        title="<b>total request cost by model and user type</b>",
+        labels={
+            "model": "model",
+            "request_cost": "total request cost ($)",
+            "user_type": "user type",
+        },
+        color_discrete_map=USER_COLORS,
+    )
+    fig_stacked.update_layout(
+        template="simple_white",
+        title_font=dict(size=20),
+        xaxis_title_font=dict(size=14),
+        yaxis_title_font=dict(size=14),
+        font=dict(size=13),
+        legend_title_text="",
+    )
+    fig_stacked.update_traces(
+        hovertemplate="model: %{x}<br>user type: %{fullData.name}<br>total cost: $%{y:,.2f}<extra></extra>"
+    )
+    fig_stacked.update_yaxes(tickprefix="$")
+    st.plotly_chart(fig_stacked, use_container_width=True)
+
     latency_points = _prepare_latency_points(research_requests)
     if latency_points is None:
         st.warning("Missing `model` or `response_time_seconds` in research data.")
@@ -839,34 +867,6 @@ def render_product_analysis_and_cost(
                 )
             )
             st.plotly_chart(fig_latency, use_container_width=True)
-
-    fig_stacked = px.bar(
-        cost_by_model_user,
-        x="model",
-        y="request_cost",
-        color="user_type",
-        barmode="stack",
-        title="<b>total request cost by model and user type</b>",
-        labels={
-            "model": "model",
-            "request_cost": "total request cost ($)",
-            "user_type": "user type",
-        },
-        color_discrete_map=USER_COLORS,
-    )
-    fig_stacked.update_layout(
-        template="simple_white",
-        title_font=dict(size=20),
-        xaxis_title_font=dict(size=14),
-        yaxis_title_font=dict(size=14),
-        font=dict(size=13),
-        legend_title_text="",
-    )
-    fig_stacked.update_traces(
-        hovertemplate="model: %{x}<br>user type: %{fullData.name}<br>total cost: $%{y:,.2f}<extra></extra>"
-    )
-    fig_stacked.update_yaxes(tickprefix="$")
-    st.plotly_chart(fig_stacked, use_container_width=True)
 
     _render_q3_cancellation_section(research_requests)
 
