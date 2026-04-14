@@ -1505,8 +1505,8 @@ def render_infrastructure_and_cost_analysis(
         hourly_heat["hour_of_day"] = hourly_heat["hour"].dt.hour
         traffic_heat = (
             hourly_heat.groupby(["day_of_week", "hour_of_day"], as_index=False)["request_count"]
-            .mean()
-            .rename(columns={"request_count": "mean_traffic"})
+            .median()
+            .rename(columns={"request_count": "median_traffic"})
         )
         traffic_heat["day_of_week"] = pd.Categorical(
             traffic_heat["day_of_week"], categories=day_order, ordered=True
@@ -1518,7 +1518,7 @@ def render_infrastructure_and_cost_analysis(
             traffic_heat.pivot_table(
                 index="day_of_week",
                 columns="hour_of_day",
-                values="mean_traffic",
+                values="median_traffic",
                 aggfunc="mean",
             )
             .reindex(day_order)
@@ -1553,8 +1553,8 @@ def render_infrastructure_and_cost_analysis(
     with heat_col2:
         fig_heatmap_traffic = px.imshow(
             traffic_heatmap_pivot,
-            labels=dict(x="Hour of day", y="Day of week", color="Mean traffic (requests)"),
-            title="Mean traffic by day of week and hour",
+            labels=dict(x="Hour of day", y="Day of week", color="Median traffic (requests)"),
+            title="Median traffic by day of week and hour",
             color_continuous_scale=coolwarm_scale,
             aspect="auto",
         )
@@ -1562,7 +1562,7 @@ def render_infrastructure_and_cost_analysis(
             hovertemplate=(
                 "Day: %{y}<br>"
                 "Hour: %{x}:00<br>"
-                "Mean traffic: %{z:,.2f}<extra></extra>"
+                "Median traffic: %{z:,.2f}<extra></extra>"
             )
         )
         fig_heatmap_traffic.update_layout(
