@@ -573,10 +573,10 @@ def _render_product_top_metrics(acquisition_pct: float, total_request_cost: floa
     st.markdown(
         """
         <style>
-        div[data-testid="stMetric"]:nth-of-type(1) [data-testid="stMetricValue"] {
+        div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div:nth-child(1) [data-testid="stMetricValue"] {
             color: #7DB7FF;
         }
-        div[data-testid="stMetric"]:nth-of-type(2) [data-testid="stMetricValue"] {
+        div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div:nth-child(2) [data-testid="stMetricValue"] {
             color: #E45756;
         }
         </style>
