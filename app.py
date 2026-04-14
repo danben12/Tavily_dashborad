@@ -1216,7 +1216,7 @@ def render_infrastructure_and_cost_analysis(
         [1.0, "#B40426"],
     ]
 
-    st.header("part 2: infrastructure & finops - the AI illusion")
+    st.title("Infrastructure & cost analysis")
 
     prepared = _prepare_finops_data(infrastructure_costs, hourly_usage, research_requests)
     if prepared is None:
