@@ -952,12 +952,13 @@ def _render_cancellation_analysis_section(research_requests: pd.DataFrame) -> No
         return
     wait_effect, inefficiency_long, billing_dist = prepared
 
+    _render_cancellation_rate_by_wait_time_chart(wait_effect)
+
     col_left, col_right = st.columns(2)
     with col_left:
-        _render_cancellation_rate_by_wait_time_chart(wait_effect)
-    with col_right:
         _render_technical_inefficiency_by_wait_time_chart(inefficiency_long)
-    _render_cancelled_request_billing_status_chart(billing_dist)
+    with col_right:
+        _render_cancelled_request_billing_status_chart(billing_dist)
 
 
 def render_product_analysis_and_cost(
