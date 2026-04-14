@@ -1010,22 +1010,25 @@ def render_product_analysis(
         _render_request_cost_distribution_chart(request_cost_dist)
     _render_total_cost_by_model_user_chart(cost_by_model_user, economics_summary)
 
-    # 6-7) render side by side
+    # 6-7) response and cancellation overview
+    prepared = _prepare_cancellation_chart_data(research_requests)
     col5, col6 = st.columns(2)
     with col5:
         _render_latency_chart(research_requests)
     with col6:
-        prepared = _prepare_cancellation_chart_data(research_requests)
         if prepared is None:
             st.warning("Missing required columns for Q3 cancellation analysis.")
         else:
             wait_effect, inefficiency_long, billing_dist = prepared
             _render_cancellation_rate_by_wait_time_chart(wait_effect)
-            col_left, col_right = st.columns(2)
-            with col_left:
-                _render_technical_inefficiency_by_wait_time_chart(inefficiency_long)
-            with col_right:
-                _render_cancelled_request_billing_status_chart(billing_dist)
+
+    # 8-9) cancellation diagnostics side by side
+    if prepared is not None:
+        col7, col8 = st.columns(2)
+        with col7:
+            _render_technical_inefficiency_by_wait_time_chart(inefficiency_long)
+        with col8:
+            _render_cancelled_request_billing_status_chart(billing_dist)
 
 
 # --------------------------------------------
