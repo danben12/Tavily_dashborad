@@ -699,7 +699,7 @@ def render_product_analysis_and_cost(
                     pareto,
                     x="cum_users_pct",
                     y="cum_requests_pct",
-                    title="<b>User concentration in product traffic</b>",
+                    title="<b>User distribution in product traffic</b>",
                     labels={
                         "cum_users_pct": "Share of research API users (%)",
                         "cum_requests_pct": "Share of research API traffic (%)",
@@ -745,9 +745,10 @@ def render_product_analysis_and_cost(
                 )
                 st.plotly_chart(fig_pareto, use_container_width=True)
                 st.caption(
-                    "This chart shows how product traffic is concentrated across users. "
+                    "This chart shows how product traffic is distributed across users. "
                     "It compares cumulative user share to cumulative request share. "
-                    f"For example, the top 5% of users account for about {y_at_5:.2f}% of total traffic."
+                    f"For example, the top 5% of users account for about {y_at_5:.2f}% of total traffic, "
+                    "showing a small portion of heavy users."
                 )
 
     latency_points = _prepare_latency_points(research_requests)
