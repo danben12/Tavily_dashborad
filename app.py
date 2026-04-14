@@ -1037,8 +1037,8 @@ def _render_technical_inefficiency_by_wait_time_chart(inefficiency_long: pd.Data
     st.caption(
         "This chart compares technical workload across wait-time groups. "
         f"When duration is under 90 seconds, median LLM calls are {llm_fast_val:.1f} and median sources found are {sources_fast_val:.1f}. "
-        f"For durations at or above 90 seconds, median LLM calls increase to {llm_slow_val:.1f}. "
-        "At the same time, median sources found did not change. "
+        f"For durations at or above 90 seconds, median LLM calls increase to {llm_slow_val:.1f}, "
+        "while median sources found did not change. "
         "This pattern indicates higher computation with no value."
     )
 
