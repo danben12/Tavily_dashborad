@@ -825,7 +825,7 @@ def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame, eco
 
 
 def _render_latency_chart(research_requests: pd.DataFrame) -> None:
-    model_colors = {"mini": "#72B7B2", "pro": "#E45756"}
+    model_colors = {"mini": "#2D66AD", "pro": "#D64443"}
     latency_points = _prepare_latency_points(research_requests)
     if latency_points is None:
         st.warning("Missing `model` or `response_time_seconds` in research data.")
