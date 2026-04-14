@@ -2,6 +2,8 @@
 
 Interactive **Streamlit** dashboard for Dan Benbenisti’s Data Analyst home assignment ([Tavily](https://tavily.com/)).
 
+Dashboard link: [tavily-dashborad-dan-benbenisti.streamlit.app](https://tavily-dashborad-dan-benbenisti.streamlit.app/)
+
 ## Run locally
 
 ```bash
@@ -28,5 +30,5 @@ Expected files: `hourly_usage.csv`, `infrastructure_costs.csv`, `research_reques
 ## Project files
 
 - `app.py` — main Streamlit dashboard
-- `sandbox.ipynb` — validation/prototyping notebook for dashboard calculations and key displayed metrics
+- `sandbox.ipynb` — prototyping notebook for dashboard calculations, chart walkthroughs, and key displayed metrics
 - `report.md` — markdown version of the submitted analysis report
