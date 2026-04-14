@@ -1403,11 +1403,12 @@ def render_infrastructure_and_cost_analysis(
         )
         st.plotly_chart(fig_growth, use_container_width=True)
         st.caption(
-            "This chart compares demand growth and cost growth over time. "
-            f"Between Nov 2025 and Mar 2026, new users grew by about X{users_growth_ratio:.1f} "
-            f"and requests grew by about X{requests_growth_ratio:.1f}, "
-            f"while infrastructure cost increased by about X{infra_growth_ratio:.1f}. "
-            "The gap suggests that capacity was provisioned ahead of demand and utilization improved later."
+            "This chart shows day-level aggregation with 7-day moving averages for total requests and total daily cost on two vertical axes. "
+            "The two lines move together, indicating a strong positive correlation between demand and cost trends over time. "
+            f"Between Nov 2025 and Mar 2026, new users grew by about X{users_growth_ratio:.2f}, "
+            f"requests grew by about X{requests_growth_ratio:.2f}, "
+            f"while infrastructure cost increased by about X{infra_growth_ratio:.2f}. "
+            "The gap suggests that capacity was provisioned ahead of demand."
         )
 
     day_order = [
