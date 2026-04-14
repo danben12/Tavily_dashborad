@@ -642,6 +642,9 @@ def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> 
 
 def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame) -> None:
     cost_by_model_user_display = cost_by_model_user.copy()
+    cost_by_model_user_display["model_display"] = (
+        cost_by_model_user_display["model"].astype(str).str.upper()
+    )
     cost_by_model_user_display["user_type_display"] = (
         cost_by_model_user_display["user_type"]
         .astype(str)
@@ -662,6 +665,7 @@ def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame) -> 
         },
         color_discrete_map=user_colors,
         category_orders={"user_type_display": ["Paying users", "Free users"]},
+        custom_data=["model_display"],
     )
     fig_stacked.update_layout(
         template="simple_white",
@@ -672,7 +676,7 @@ def _render_total_cost_by_model_user_chart(cost_by_model_user: pd.DataFrame) -> 
         legend_title_text="",
     )
     fig_stacked.update_traces(
-        hovertemplate="Model: %{x}<br>User type: %{fullData.name}<br>Total cost: $%{y:,.0f}<extra></extra>"
+        hovertemplate="Model: %{customdata[0]}<br>User type: %{fullData.name}<br>Total cost: $%{y:,.0f}<extra></extra>"
     )
     fig_stacked.update_yaxes(tickprefix="$")
     st.plotly_chart(fig_stacked, use_container_width=True)
