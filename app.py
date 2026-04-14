@@ -1617,7 +1617,7 @@ def render_infrastructure_and_cost_analysis(
             title="Weekend vs weekday comparison",
             labels={
                 "metric": "Metric",
-                "index_value": "Index (weekday = 100)",
+                "index_value": "Ratio",
                 "day_type": "Day type",
             },
             color_discrete_map={"Weekday": "#4C78A8", "Weekend": "#E45756"},
@@ -1635,6 +1635,7 @@ def render_infrastructure_and_cost_analysis(
             yaxis_title_font=dict(size=14),
             font=dict(size=13),
             legend_title_text="",
+            showlegend=False,
             margin=dict(t=60, b=40, l=30, r=30),
         )
         st.plotly_chart(fig_weekend_compare, use_container_width=True)
