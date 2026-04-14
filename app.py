@@ -1617,7 +1617,7 @@ def render_infrastructure_and_cost_analysis(
             title="Weekend vs weekday comparison",
             labels={
                 "metric": "Metric",
-                "index_value": "Percentage out of weekdays",
+                "index_value": "Percentage out of weekdays (%)",
                 "day_type": "Day type",
             },
             color_discrete_map={"Weekday": "#4C78A8", "Weekend": "#E45756"},
