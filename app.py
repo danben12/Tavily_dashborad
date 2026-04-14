@@ -1600,7 +1600,7 @@ def render_infrastructure_and_cost_analysis(
                     "Average hourly total cost",
                 ],
                 "day_type": ["Weekday", "Weekend", "Weekday", "Weekend"],
-                "index_value": [
+                "pct_change_value": [
                     100.0,
                     100.0 * weekend_req_mean / weekday_req_mean,
                     100.0,
@@ -1608,25 +1608,26 @@ def render_infrastructure_and_cost_analysis(
                 ],
             }
         )
+        comparison_index["pct_change_value"] = comparison_index["pct_change_value"] - 100.0
         fig_weekend_compare = px.bar(
             comparison_index,
             x="metric",
-            y="index_value",
+            y="pct_change_value",
             color="day_type",
             barmode="group",
             title="Weekend vs weekday comparison",
             labels={
                 "metric": "Metric",
-                "index_value": "Ratio",
+                "pct_change_value": "Percentage change vs weekday (%)",
                 "day_type": "Day type",
             },
             color_discrete_map={"Weekday": "#4C78A8", "Weekend": "#E45756"},
-            text=comparison_index["index_value"].map(lambda v: f"{v:.1f}"),
+            text=comparison_index["pct_change_value"].map(lambda v: f"{v:.1f}%"),
         )
         fig_weekend_compare.update_traces(
             textposition="outside",
             cliponaxis=False,
-            hovertemplate="Metric: %{x}<br>Day type: %{fullData.name}<br>Index: %{y:.1f}<extra></extra>",
+            hovertemplate="Metric: %{x}<br>Day type: %{fullData.name}<br>Percentage change: %{y:.1f}%<extra></extra>",
         )
         fig_weekend_compare.update_layout(
             template="simple_white",
