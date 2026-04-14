@@ -601,11 +601,11 @@ def _render_user_base_chart(user_dist: pd.DataFrame) -> None:
 
 def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> None:
     model_colors_upper = {"MINI": "#72B7B2", "PRO": "#E45756"}
-    mini_mean_cost = float(
-        request_cost_dist.loc[request_cost_dist["model"].eq("MINI"), "request_cost"].mean()
+    mini_median_cost = float(
+        request_cost_dist.loc[request_cost_dist["model"].eq("MINI"), "request_cost"].median()
     )
-    pro_mean_cost = float(
-        request_cost_dist.loc[request_cost_dist["model"].eq("PRO"), "request_cost"].mean()
+    pro_median_cost = float(
+        request_cost_dist.loc[request_cost_dist["model"].eq("PRO"), "request_cost"].median()
     )
     fig_avg_cost = px.box(
         request_cost_dist,
@@ -642,17 +642,17 @@ def _render_request_cost_distribution_chart(request_cost_dist: pd.DataFrame) -> 
     )
     fig_avg_cost.update_yaxes(tickprefix="$")
     st.plotly_chart(fig_avg_cost, use_container_width=True)
-    if pd.notna(mini_mean_cost) and pd.notna(pro_mean_cost) and mini_mean_cost > 0:
-        pro_vs_mini_ratio = pro_mean_cost / mini_mean_cost
+    if pd.notna(mini_median_cost) and pd.notna(pro_median_cost) and mini_median_cost > 0:
+        pro_vs_mini_ratio = pro_median_cost / mini_median_cost
         st.caption(
             "This chart shows the distribution of request costs by model tier. "
-            f"On average, PRO requests cost about {pro_vs_mini_ratio:.2f}x more than MINI requests, "
-            "highlighting a meaningful unit-cost gap between tiers."
+            f"By median, PRO requests cost about {pro_vs_mini_ratio:.2f}x more than MINI requests, "
+            "highlighting the gap between unit-cost between models."
         )
     else:
         st.caption(
             "This chart shows the distribution of request costs by model tier, "
-            "highlighting the unit-cost gap between MINI and PRO requests."
+            "highlighting the gap between unit-cost between models."
         )
 
 
