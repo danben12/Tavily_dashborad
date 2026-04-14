@@ -1529,8 +1529,8 @@ def render_infrastructure_and_cost_analysis(
         .rename(columns={"day_of_week": "day", "hour_of_day": "hour"})
     )
     weekend_traffic_drop_pct = None
-    weekend_infra_drop_pct = None
-    if {"hour", "request_count"}.issubset(hourly_l.columns) and {"hour", "infra_total"}.issubset(
+    weekend_total_cost_drop_pct = None
+    if {"hour", "request_count"}.issubset(hourly_l.columns) and {"hour", "total_hourly_cost"}.issubset(
         infra_l.columns
     ):
         weekend_req = (
@@ -1538,12 +1538,12 @@ def render_infrastructure_and_cost_analysis(
             .sum()
             .rename(columns={"request_count": "total_requests"})
         )
-        weekend_infra = (
-            infra_l.groupby("hour", as_index=False)["infra_total"]
+        weekend_total_cost = (
+            infra_l.groupby("hour", as_index=False)["total_hourly_cost"]
             .sum()
-            .rename(columns={"infra_total": "infra_total_cost"})
+            .rename(columns={"total_hourly_cost": "total_hourly_cost"})
         )
-        weekend_joined = weekend_req.merge(weekend_infra, on="hour", how="inner").dropna()
+        weekend_joined = weekend_req.merge(weekend_total_cost, on="hour", how="inner").dropna()
         if not weekend_joined.empty:
             weekend_joined["is_weekend"] = weekend_joined["hour"].dt.dayofweek >= 5
             weekend_rows = weekend_joined.loc[weekend_joined["is_weekend"]]
@@ -1551,19 +1551,21 @@ def render_infrastructure_and_cost_analysis(
             if not weekend_rows.empty and not weekday_rows.empty:
                 weekday_req_mean = float(weekday_rows["total_requests"].mean())
                 weekend_req_mean = float(weekend_rows["total_requests"].mean())
-                weekday_infra_mean = float(weekday_rows["infra_total_cost"].mean())
-                weekend_infra_mean = float(weekend_rows["infra_total_cost"].mean())
+                weekday_total_cost_mean = float(weekday_rows["total_hourly_cost"].mean())
+                weekend_total_cost_mean = float(weekend_rows["total_hourly_cost"].mean())
                 if weekday_req_mean > 0:
                     weekend_traffic_drop_pct = 100.0 * (1.0 - (weekend_req_mean / weekday_req_mean))
-                if weekday_infra_mean > 0:
-                    weekend_infra_drop_pct = 100.0 * (1.0 - (weekend_infra_mean / weekday_infra_mean))
+                if weekday_total_cost_mean > 0:
+                    weekend_total_cost_drop_pct = 100.0 * (
+                        1.0 - (weekend_total_cost_mean / weekday_total_cost_mean)
+                    )
     if not heatmap_long.empty:
-        if weekend_traffic_drop_pct is not None and weekend_infra_drop_pct is not None:
+        if weekend_traffic_drop_pct is not None and weekend_total_cost_drop_pct is not None:
             st.caption(
                 f"This heatmap shows average hourly infrastructure cost by weekday and hour. "
                 f"There is a cyclical pattern in infrastructure cost, with nights and weekends tending to be lower. "
                 f"On weekends, average hourly traffic drops by {weekend_traffic_drop_pct:.1f}%, "
-                f"while average hourly infrastructure cost declines by {weekend_infra_drop_pct:.1f}%."
+                f"while average hourly total cost declines by {weekend_total_cost_drop_pct:.1f}%."
             )
         else:
             st.caption(
