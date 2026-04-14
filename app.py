@@ -1638,10 +1638,14 @@ def render_infrastructure_and_cost_analysis(
             margin=dict(t=60, b=40, l=30, r=30),
         )
         st.plotly_chart(fig_weekend_compare, use_container_width=True)
+        weekend_traffic_drop_pct = 100.0 - (100.0 * weekend_req_mean / weekday_req_mean)
+        weekend_total_cost_drop_pct = 100.0 - (
+            100.0 * weekend_total_cost_mean / weekday_total_cost_mean
+        )
         st.caption(
-            f"This chart compares weekends to weekdays with weekends indexed to 100. "
-            f"Average hourly weekday traffic is {weekday_vs_weekend_traffic_pct:.1f}% higher than weekend traffic, "
-            f"while average hourly weekday total cost is only {weekday_vs_weekend_cost_pct:.1f}% higher than weekend cost."
+            "This chart compares weekends to weekdays with weekdays indexed to 100. "
+            f"Average hourly traffic is {weekend_traffic_drop_pct:.1f}% lower on weekends, "
+            f"while average hourly total cost is only {weekend_total_cost_drop_pct:.1f}% lower on weekends."
         )
 
     hourly_activity = _lowercase_columns(hourly_usage).copy()
